@@ -1,0 +1,35 @@
+{
+  "start": {
+    "message": "Hello! I am AlphaPack, a Telegram group management bot.\n\nAdd me to a group and give me admin rights to get started."
+  },
+  "welcome": {
+    "default_message": "Welcome to the group, {name}! 👋\nPlease read the group rules before chatting.",
+    "goodbye_message": "Goodbye, {name}. We hope to see you again!"
+  },
+  "moderation": {
+    "warn_issued": "⚠️ <b>{name}</b> has been warned. ({count}/{threshold})",
+    "warn_cleared": "✅ Warnings for <b>{name}</b> have been cleared.",
+    "muted": "🔇 <b>{name}</b> has been muted{duration}.",
+    "unmuted": "🔊 <b>{name}</b> has been unmuted.",
+    "banned": "🚫 <b>{name}</b> has been banned{duration}.",
+    "unbanned": "✅ <b>{name}</b> has been unbanned.",
+    "warn_threshold_reached": "🚫 <b>{name}</b> has reached the warn threshold and has been {action}.",
+    "no_reply": "❌ Reply to a user message to use this command.",
+    "cannot_moderate_admin": "❌ You cannot moderate an admin.",
+    "self_action": "❌ You cannot moderate yourself."
+  },
+  "settings": {
+    "title": "⚙️ Group Settings",
+    "saved": "✅ Settings saved.",
+    "dm_only": "⚙️ Open settings in DM: {link}"
+  },
+  "errors": {
+    "generic": "❌ An error occurred. Please try again.",
+    "permission_denied": "❌ You do not have permission to use this command.",
+    "redis_unavailable": "❌ Storage is temporarily unavailable.",
+    "dm_blocked": "ℹ️ Could not send a DM to the user — they may have blocked the bot."
+  },
+  "admin_mention": {
+    "relay": "📢 <b>{name}</b> mentioned @admin in <b>{chat}</b>:\n\n{message}"
+  }
+}

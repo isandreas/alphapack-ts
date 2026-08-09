@@ -1,0 +1,22 @@
+# ── Dependencies ─────────────────────────────────────────────
+node_modules/
+
+# ── Build output ──────────────────────────────────────────────
+dist/
+
+# ── Secrets ───────────────────────────────────────────────────
+.env
+
+# ── Per-group runtime settings (generated, not tracked) ───────
+data/groups/
+
+# ── PM2 runtime files ─────────────────────────────────────────
+.pm2/
+logs/
+
+# ── OS / Editor ───────────────────────────────────────────────
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/

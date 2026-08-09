@@ -1,0 +1,46 @@
+# Per-group default settings skeleton.
+#
+# Shape is intentionally minimal for Phase 0.
+# Later phases extend this object with their own keys.
+# getGroupSettings(chatId) in middlewares/group-settings.ts merges
+# Redis overrides on top of these defaults at runtime.
+
+# Locale for this group's bot replies ("id" | "en")
+locale: id
+
+# --- Moderation (Phase 2) ---
+warnThreshold: 5       # auto-action after N warns
+logChannelId: null     # Telegram channel ID for audit logs (null = disabled)
+
+# --- Features toggle map (Phase 2+) ---
+# Each key corresponds to a feature module. Set false to disable globally.
+features: {}
+
+# --- Anti-Spam (Phase 2) ---
+floodGuard:
+  enabled: true
+  windowSeconds: 3
+  messageThreshold: 5
+  punishment:
+    type: mute
+    durationSeconds: 60
+
+# --- Welcome, Goodbye & Captcha Gate (Phase 3) ---
+welcome:
+  enabled: true
+  template: "Welcome {mention} to {group_name}! 👋"
+  captcha:
+    enabled: false
+    timeoutSeconds: 60
+goodbye:
+  enabled: false
+  template: "{first_name} has left {group_name}."
+
+# --- Mentions & Reports (Phase 4) ---
+mentions:
+  adminRelay:
+    enabled: true
+    cooldownSeconds: 60
+  userNotify:
+    enabled: true
+    cooldownSeconds: 30

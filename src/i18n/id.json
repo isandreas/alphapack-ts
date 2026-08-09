@@ -1,0 +1,35 @@
+{
+  "start": {
+    "message": "Halo! Saya AlphaPack, bot manajemen grup Telegram.\n\nTambahkan saya ke grup dan berikan hak admin untuk memulai."
+  },
+  "welcome": {
+    "default_message": "Selamat datang di grup, {name}! 👋\nSilakan baca peraturan grup sebelum mulai mengobrol.",
+    "goodbye_message": "Selamat tinggal, {name}. Semoga bisa bertemu lagi!"
+  },
+  "moderation": {
+    "warn_issued": "⚠️ <b>{name}</b> telah mendapat peringatan. ({count}/{threshold})",
+    "warn_cleared": "✅ Peringatan untuk <b>{name}</b> telah dihapus.",
+    "muted": "🔇 <b>{name}</b> telah dibisukan{duration}.",
+    "unmuted": "🔊 <b>{name}</b> sudah tidak dibisukan.",
+    "banned": "🚫 <b>{name}</b> telah diblokir{duration}.",
+    "unbanned": "✅ <b>{name}</b> sudah tidak diblokir.",
+    "warn_threshold_reached": "🚫 <b>{name}</b> telah mencapai batas peringatan dan telah di{action}.",
+    "no_reply": "❌ Balas pesan pengguna untuk menggunakan perintah ini.",
+    "cannot_moderate_admin": "❌ Anda tidak dapat memoderasi admin.",
+    "self_action": "❌ Anda tidak dapat memoderasi diri sendiri."
+  },
+  "settings": {
+    "title": "⚙️ Pengaturan Grup",
+    "saved": "✅ Pengaturan berhasil disimpan.",
+    "dm_only": "⚙️ Buka pengaturan di DM: {link}"
+  },
+  "errors": {
+    "generic": "❌ Terjadi kesalahan. Silakan coba lagi.",
+    "permission_denied": "❌ Anda tidak memiliki izin untuk menggunakan perintah ini.",
+    "redis_unavailable": "❌ Penyimpanan sementara tidak tersedia.",
+    "dm_blocked": "ℹ️ Tidak dapat mengirim DM ke pengguna — mungkin mereka memblokir bot."
+  },
+  "admin_mention": {
+    "relay": "📢 <b>{name}</b> menyebut @admin di <b>{chat}</b>:\n\n{message}"
+  }
+}
