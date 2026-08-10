@@ -126,8 +126,12 @@ export async function groupSettingsMiddleware(
 ): Promise<void> {
   const chat = ctx.chat;
 
-  if (chat && (chat.type === "group" || chat.type === "supergroup")) {
-    ctx.groupSettings = await getGroupSettings(chat.id);
+  if (chat) {
+    if (chat.type === "group" || chat.type === "supergroup") {
+      ctx.groupSettings = await getGroupSettings(chat.id);
+    } else if (chat.type === "private" && ctx.session?.settingsChatId) {
+      ctx.groupSettings = await getGroupSettings(ctx.session.settingsChatId);
+    }
   }
 
   await next();

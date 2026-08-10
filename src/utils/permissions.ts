@@ -2,16 +2,6 @@
  * utils/permissions.ts
  *
  * Low-level permission helpers.
- *
- * Phase 0 exports:
- *   isAdmin(ctx, chatId, userId) — direct API call, no caching.
- *
- * Prefer the cached isGroupAdmin() from middlewares/admin-guard.ts for
- * moderation commands — this function is here for one-off checks
- * (e.g. checking bot's own permissions before issuing an API call).
- *
- * Phase 2 will add:
- *   botCan(ctx, chatId, permission) — checks bot's own admin capabilities.
  */
 
 import { GrammyError } from "grammy";
@@ -65,4 +55,16 @@ export async function isAutoModerationExempt(
     return true;
   }
   return await isGroupAdmin(ctx, chatId, member.id);
+}
+
+/**
+ * Checks whether a specific moderation feature is enabled in the group settings.
+ */
+export function isModerationFeatureEnabled(
+  ctx: BotContext,
+  feature: "warn" | "tban" | "ban" | "mute",
+): boolean {
+  const settings = ctx.groupSettings;
+  if (!settings) return false;
+  return settings.moderation?.[feature]?.enabled ?? false;
 }

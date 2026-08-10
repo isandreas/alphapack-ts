@@ -84,3 +84,10 @@ setlogchannel_checking = ⏳ Memeriksa status admin Anda di seluruh grup...
 error_admin_relay_cooldown = ⚠️ Silakan tunggu sebelum memanggil admin lagi.
 reply_admin_notified = 🔔 Admin telah diberitahu.
 dm_user_mentioned = 💬 Anda disebut di <b>{ $group }</b> oleh <b>{ $sender }</b>.
+
+# Settings Control Panel (Phase 5)
+error_moderation_disabled = ⚠️ Perintah { $feature } saat ini dinonaktifkan di grup ini.
+rules_not_set = ⚠️ Peraturan belum diatur untuk grup ini.
+settings_dm_start_prompt = ⚠️ Silakan mulai DM dengan bot untuk membuka panel pengaturan.
+settings_checking_groups = ⏳ Mencari grup di mana Anda dan bot sama-sama menjadi admin...
+settings_select_group = Pilih grup yang ingin Anda konfigurasikan:

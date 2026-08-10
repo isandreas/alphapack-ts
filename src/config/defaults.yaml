@@ -8,6 +8,29 @@
 # Locale for this group's bot replies ("id" | "en")
 locale: id
 
+# --- Custom Name ---
+# Set via BOT_CUSTOM_NAME env var. Defaults to "Alpha Pack".
+# customBotName is no longer a per-group setting.
+
+# --- Rules ---
+rules:
+  text: null               # null = "no rules set yet" i18n fallback
+
+# --- Guide ---
+guide:
+  text: null               # null = "no guide set yet" i18n fallback
+
+# --- Moderation (Phase 5) ---
+moderation:
+  warn:
+    enabled: false
+  tban:
+    enabled: false
+  ban:
+    enabled: false
+  mute:
+    enabled: false
+
 # --- Moderation (Phase 2) ---
 warnThreshold: 5       # auto-action after N warns
 logChannelId: null     # Telegram channel ID for audit logs (null = disabled)
@@ -18,7 +41,7 @@ features: {}
 
 # --- Anti-Spam (Phase 2) ---
 floodGuard:
-  enabled: true
+  enabled: false       # Gated default OFF per cutover rollout spec
   windowSeconds: 3
   messageThreshold: 5
   punishment:
@@ -27,20 +50,27 @@ floodGuard:
 
 # --- Welcome, Goodbye & Captcha Gate (Phase 3) ---
 welcome:
-  enabled: true
-  template: "Welcome {mention} to {group_name}! 👋"
+  enabled: false       # Gated default OFF per cutover rollout spec
+  template: |
+    Pujaan ku {user_displayname}, lama sekali kutunggu hadirmu, cintamu bagai bunga pasir yang timbul dan tenggelam...
+    peluk hangat dari {group_name} 🎉🎉🎉
+
+    🪪 {user_id}
+    📮 {user_username}
+
+    Jangan lupa baca /rules dan /guide ya.. 🤗
   captcha:
     enabled: false
     timeoutSeconds: 60
 goodbye:
-  enabled: false
-  template: "{first_name} has left {group_name}."
+  enabled: false       # Gated default OFF per cutover rollout spec
+  template: "{user_displayname} has left {group_name}."
 
 # --- Mentions & Reports (Phase 4) ---
 mentions:
   adminRelay:
-    enabled: true
+    enabled: false     # Gated default OFF per cutover rollout spec
     cooldownSeconds: 60
   userNotify:
-    enabled: true
+    enabled: false     # Gated default OFF per cutover rollout spec
     cooldownSeconds: 30

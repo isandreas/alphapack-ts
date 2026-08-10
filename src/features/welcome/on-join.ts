@@ -3,33 +3,7 @@ import { getRedisClient } from "../../db/redis.js";
 import { schedulerZsetKey } from "../../db/keys.js";
 import { isAutoModerationExempt } from "../../utils/permissions.js";
 import { logger } from "../../utils/logger.js";
-
-/**
- * Replaces placeholders in the template: {username}, {first_name}, {mention}, {group_name}.
- */
-function replacePlaceholders(
-  template: string,
-  user: { id: number; first_name: string; username?: string | undefined },
-  groupName: string,
-): string {
-  const escapeHtml = (str: string) =>
-    str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-  const safeFirstName = escapeHtml(user.first_name);
-  const safeGroupName = escapeHtml(groupName);
-
-  const usernameVal = user.username
-    ? `@${escapeHtml(user.username)}`
-    : safeFirstName;
-
-  const mentionVal = `<a href="tg://user?id=${user.id}">${safeFirstName}</a>`;
-
-  return template
-    .replace(/{first_name}/g, safeFirstName)
-    .replace(/{group_name}/g, safeGroupName)
-    .replace(/{username}/g, usernameVal)
-    .replace(/{mention}/g, mentionVal);
-}
+import { replacePlaceholders } from "../../utils/placeholder.js";
 
 /**
  * Handles the new_chat_members update.
@@ -43,6 +17,7 @@ export async function onJoinHandler(ctx: BotContext): Promise<void> {
   if (!settings) return;
 
   const groupName = (ctx.chat && "title" in ctx.chat ? ctx.chat.title : "Group") || "Group";
+  const botName = process.env.BOT_CUSTOM_NAME || ctx.me.first_name;
   const redis = getRedisClient();
 
   for (const member of newMembers) {
@@ -90,7 +65,11 @@ export async function onJoinHandler(ctx: BotContext): Promise<void> {
       // 1b. Build challenge message
       let msgText = "";
       if (welcomeEnabled) {
-        msgText = replacePlaceholders(settings.welcome.template, member, groupName) + "\n\n";
+        msgText = replacePlaceholders(settings.welcome.template, {
+          user: member,
+          groupName,
+          botName,
+        }) + "\n\n";
       }
       msgText += `⚠️ Click the button below to verify you are not a robot and unmute yourself.`;
 
@@ -130,7 +109,11 @@ export async function onJoinHandler(ctx: BotContext): Promise<void> {
 
     } else if (welcomeEnabled) {
       // 2. Captcha disabled but welcome enabled
-      const welcomeText = replacePlaceholders(settings.welcome.template, member, groupName);
+      const welcomeText = replacePlaceholders(settings.welcome.template, {
+        user: member,
+        groupName,
+        botName,
+      });
       try {
         await ctx.reply(welcomeText, {
           parse_mode: "HTML",

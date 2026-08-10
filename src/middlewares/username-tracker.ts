@@ -17,10 +17,8 @@ export async function usernameTrackerMiddleware(
   ctx: BotContext,
   next: NextFunction,
 ): Promise<void> {
-  // Pass control to the next middleware immediately so this doesn't block update processing
-  next().catch((err) => {
-    logger.error({ err, event: "next_middleware_error" }, "Error in middleware chain after username tracker");
-  });
+  // Await next so errors propagate properly to bot.catch instead of being swallowed here.
+  await next();
 
   const chatId = ctx.chat?.id;
   const user = ctx.from;
@@ -31,23 +29,20 @@ export async function usernameTrackerMiddleware(
     user.username &&
     (ctx.chat?.type === "group" || ctx.chat?.type === "supergroup")
   ) {
-    try {
-      const redis = getRedisClient();
-      const key = usernameMapKey(chatId);
-      const username = user.username.toLowerCase();
+    // Fire-and-forget only the Redis write — not the entire chain.
+    // A failure here is non-critical and should not delay the response.
+    const redis = getRedisClient();
+    const key = usernameMapKey(chatId);
+    const username = user.username.toLowerCase();
 
-      // We use a pipeline to set the field and ensure a TTL on the whole hash.
-      // A 7-day TTL ensures old data expires, but resets every time anyone speaks.
-      // This is efficient enough for this scale.
-      const pipeline = redis.pipeline();
-      pipeline.hset(key, username, user.id.toString());
-      pipeline.expire(key, 7 * 24 * 60 * 60); // 7 days
-      await pipeline.exec();
-    } catch (err: unknown) {
+    const pipeline = redis.pipeline();
+    pipeline.hset(key, username, user.id.toString());
+    pipeline.expire(key, 7 * 24 * 60 * 60); // 7 days
+    pipeline.exec().catch((err: unknown) => {
       logger.warn(
         { event: "username_tracker_error", chatId, userId: user.id, username: user.username, err },
         "Failed to track username in Redis",
       );
-    }
+    });
   }
 }

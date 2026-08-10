@@ -6,6 +6,7 @@ import { notifyTargetAndLog } from "../../utils/notify.js";
 import { logger } from "../../utils/logger.js";
 import { isGroupAdmin } from "../../middlewares/admin-guard.js";
 import { untilDate, formatDuration } from "../../utils/time-parser.js";
+import { isModerationFeatureEnabled } from "../../utils/permissions.js";
 
 export interface BanOptions {
   chatId: number;
@@ -96,6 +97,12 @@ export async function banHandler(ctx: BotContext): Promise<void> {
   const adminId = ctx.from?.id;
   if (!chatId || !adminId) return;
 
+  // 0. Gating check
+  if (!isModerationFeatureEnabled(ctx, "ban")) {
+    await ctx.reply(ctx.t("error_moderation_disabled", { feature: "ban" }));
+    return;
+  }
+
   if (ctx.chat.type === "private") {
     await ctx.reply(ctx.t("error_group_only"));
     return;
@@ -143,6 +150,12 @@ export async function tbanHandler(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id;
   const adminId = ctx.from?.id;
   if (!chatId || !adminId) return;
+
+  // 0. Gating check
+  if (!isModerationFeatureEnabled(ctx, "tban")) {
+    await ctx.reply(ctx.t("error_moderation_disabled", { feature: "tban" }));
+    return;
+  }
 
   if (ctx.chat.type === "private") {
     await ctx.reply(ctx.t("error_group_only"));
@@ -193,6 +206,12 @@ export async function unbanHandler(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id;
   const adminId = ctx.from?.id;
   if (!chatId || !adminId) return;
+
+  // 0. Gating check
+  if (!isModerationFeatureEnabled(ctx, "ban")) {
+    await ctx.reply(ctx.t("error_moderation_disabled", { feature: "ban" }));
+    return;
+  }
 
   if (ctx.chat.type === "private") {
     await ctx.reply(ctx.t("error_group_only"));

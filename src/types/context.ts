@@ -31,6 +31,13 @@ import type { GroupSettings } from "./settings.js";
 export interface SessionData {
   /** User-level locale override (set via /settings DM — Phase 5). */
   locale?: "id" | "en";
+  settingsChatId?: number;
+  settingsEditState?: {
+    chatId: number;
+    settingKey: string;
+    validation: "text" | "number" | "url" | "template" | "resolution";
+    submenu: string;
+  };
 }
 
 // ── Context ────────────────────────────────────────────────────────────────────

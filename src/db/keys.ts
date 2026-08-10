@@ -178,3 +178,18 @@ export function globalUsernameMapKey(): string {
 export function startedUsersKey(): string {
   return `${NS}:bot:started_users`;
 }
+
+// ── Settings Editor State (Phase 5) ───────────────────────────────────────────
+
+/**
+ * Short-lived Redis key (TTL 5 min) that carries the pending settings edit
+ * state from a menu button callback into the settingsEditor conversation.
+ *
+ * Using Redis instead of ctx.session avoids the grammY conversations v2
+ * replay-context issue where ctx.session is undefined during replay.
+ *
+ * @example settingsEditKey(987654321) → "alphapack:settings_edit:987654321"
+ */
+export function settingsEditKey(userId: number): string {
+  return `${NS}:settings_edit:${userId}`;
+}

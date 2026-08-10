@@ -67,4 +67,22 @@ export interface GroupSettings {
       cooldownSeconds: number;
     };
   };
+
+  /** Rules text configuration (Phase 5). */
+  rules: {
+    text: string | null;
+  };
+
+  /** Guide text configuration (Phase 5). */
+  guide: {
+    text: string | null;
+  };
+
+  /** Moderation command status gating (Phase 5). */
+  moderation: {
+    warn: { enabled: boolean };
+    tban: { enabled: boolean };
+    ban: { enabled: boolean };
+    mute: { enabled: boolean };
+  };
 }

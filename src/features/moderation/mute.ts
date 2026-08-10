@@ -6,6 +6,7 @@ import { notifyTargetAndLog } from "../../utils/notify.js";
 import { logger } from "../../utils/logger.js";
 import { isGroupAdmin } from "../../middlewares/admin-guard.js";
 import { untilDate, formatDuration } from "../../utils/time-parser.js";
+import { isModerationFeatureEnabled } from "../../utils/permissions.js";
 
 export interface MuteUserOptions {
   chatId: number;
@@ -94,6 +95,12 @@ export async function muteHandler(ctx: BotContext): Promise<void> {
   const adminId = ctx.from?.id;
   if (!chatId || !adminId) return;
 
+  // 0. Gating check
+  if (!isModerationFeatureEnabled(ctx, "mute")) {
+    await ctx.reply(ctx.t("error_moderation_disabled", { feature: "mute" }));
+    return;
+  }
+
   if (ctx.chat.type === "private") {
     await ctx.reply(ctx.t("error_group_only"));
     return;
@@ -160,6 +167,12 @@ export async function unmuteHandler(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id;
   const adminId = ctx.from?.id;
   if (!chatId || !adminId) return;
+
+  // 0. Gating check
+  if (!isModerationFeatureEnabled(ctx, "mute")) {
+    await ctx.reply(ctx.t("error_moderation_disabled", { feature: "mute" }));
+    return;
+  }
 
   if (ctx.chat.type === "private") {
     await ctx.reply(ctx.t("error_group_only"));

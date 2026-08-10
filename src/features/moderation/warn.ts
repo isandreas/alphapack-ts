@@ -4,6 +4,7 @@ import { warnKey } from "../../db/keys.js";
 import { resolveTarget, formatUserMention } from "../../utils/target-resolver.js";
 import { notifyTargetAndLog } from "../../utils/notify.js";
 import { isGroupAdmin } from "../../middlewares/admin-guard.js";
+import { isModerationFeatureEnabled } from "../../utils/permissions.js";
 import { banUser } from "./ban.js"; // We will export this helper from ban.ts
 
 /**
@@ -16,6 +17,12 @@ export async function warnHandler(ctx: BotContext): Promise<void> {
   const chatId = ctx.chat?.id;
   const adminId = ctx.from?.id;
   if (!chatId || !adminId) return;
+
+  // 0. Gating check
+  if (!isModerationFeatureEnabled(ctx, "warn")) {
+    await ctx.reply(ctx.t("error_moderation_disabled", { feature: "warn" }));
+    return;
+  }
 
   // 1. Only run in group chats
   if (ctx.chat.type === "private") {
@@ -55,8 +62,9 @@ export async function warnHandler(ctx: BotContext): Promise<void> {
   const currentCount = await redis.incr(key); // Persistent counter
 
   const threshold = ctx.groupSettings?.warnThreshold ?? 5;
+  const isBanEnabled = isModerationFeatureEnabled(ctx, "ban");
 
-  if (currentCount >= threshold) {
+  if (currentCount >= threshold && isBanEnabled) {
     // Escalate to auto-ban
     await banUser(ctx, {
       chatId,
@@ -71,7 +79,11 @@ export async function warnHandler(ctx: BotContext): Promise<void> {
     });
     // The banUser helper will handle the reply and action card for the ban.
   } else {
-    // Standard warn
+    // Standard warn (or threshold reached but ban is disabled)
+    const isThresholdHitButBanDisabled = currentCount >= threshold && !isBanEnabled;
+    const extraNote = isThresholdHitButBanDisabled ? " (Auto-ban would have triggered but is disabled)" : "";
+    const reasonText = (target.reason || ctx.t("no_reason_provided")) + extraNote;
+
     const adminDisplayName = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ") || "Admin";
 
     await notifyTargetAndLog(ctx, {
@@ -83,7 +95,7 @@ export async function warnHandler(ctx: BotContext): Promise<void> {
       adminUsername: ctx.from.username,
       adminDisplayName,
       action: "warn",
-      reason: target.reason,
+      reason: reasonText,
       warnCount: currentCount,
       warnThreshold: threshold,
     });
@@ -92,7 +104,7 @@ export async function warnHandler(ctx: BotContext): Promise<void> {
       target: "TARGET_PLACEHOLDER",
       count: currentCount.toString(),
       threshold: threshold.toString(),
-      reason: target.reason || ctx.t("no_reason_provided"),
+      reason: reasonText,
     }).replace("TARGET_PLACEHOLDER", formatUserMention(target.userId, target.displayName, target.username));
 
     const replyMarkup = {

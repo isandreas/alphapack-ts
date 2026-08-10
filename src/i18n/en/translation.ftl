@@ -84,3 +84,10 @@ setlogchannel_checking = ⏳ Checking your admin status across groups...
 error_admin_relay_cooldown = ⚠️ Please wait before calling admins again.
 reply_admin_notified = 🔔 Admins have been notified.
 dm_user_mentioned = 💬 You were mentioned in <b>{ $group }</b> by <b>{ $sender }</b>.
+
+# Settings Control Panel (Phase 5)
+error_moderation_disabled = ⚠️ The { $feature } command is currently disabled in this group.
+rules_not_set = ⚠️ No rules have been set yet for this group.
+settings_dm_start_prompt = ⚠️ Please start a DM with the bot to open the settings panel.
+settings_checking_groups = ⏳ Finding groups where you and the bot are both admins...
+settings_select_group = Select the group you want to configure:

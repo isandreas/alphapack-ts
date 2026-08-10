@@ -63,6 +63,18 @@ import {
   mentionNotifyToggleCommand,
 } from "./features/mentions/mention-settings.js";
 
+import { rulesCommandHandler } from "./features/settings/rules.js";
+import { guideCommandHandler } from "./features/settings/guide.js";
+import {
+  settingsMenu,
+  settingsCommandHandler,
+  settingsSelectCallbackHandler,
+} from "./features/settings/settings-menu.js";
+import {
+  settingsEditorConversation,
+  resolutionGroupConversation,
+} from "./features/settings/settings-conversations.js";
+
 export let i18nInstance: I18n<BotContext>;
 
 export function createBot(): Bot<BotContext> {
@@ -156,6 +168,11 @@ export function createBot(): Bot<BotContext> {
   // ── 8. Conversations ──────────────────────────────────────────────────────
   bot.use(conversations({ plugins: [i18nInstance] }));
   bot.use(createConversation(setLogChannelConversation, { id: "setLogChannel" }));
+  bot.use(createConversation(settingsEditorConversation, { id: "settingsEditor" }));
+  bot.use(createConversation(resolutionGroupConversation, { id: "resolutionGroupEditor" }));
+
+  // Register Settings Menu
+  bot.use(settingsMenu);
 
   // ── Commands ───────────────────────────────────────────────────────────────
 
@@ -195,6 +212,7 @@ export function createBot(): Bot<BotContext> {
   bot.callbackQuery(/^rm_warn:/, removeWarnHandler);
   bot.callbackQuery(/^captcha_approve:/, captchaCallbackHandler);
   bot.callbackQuery(/^resolve:/, resolveReportCallbackHandler);
+  bot.callbackQuery(/^sel_set:/, settingsSelectCallbackHandler);
 
   // ── Settings commands ─────────────────────────────────────────────────────
   bot.command("setlogchannel", setLogChannelCommand);
@@ -205,6 +223,10 @@ export function createBot(): Bot<BotContext> {
   bot.command("captcha", requireAdmin(), captchaToggleCommand);
   bot.command("adminmention", requireAdmin(), adminMentionToggleCommand);
   bot.command("mentionnotify", requireAdmin(), mentionNotifyToggleCommand);
+  bot.command("settings", settingsCommandHandler);
+  bot.command("rules", rulesCommandHandler);
+  bot.command("guide", guideCommandHandler);
+
 
   // ── Event handlers ────────────────────────────────────────────────────────
   bot.on("my_chat_member", myChatMemberHandler);
@@ -217,6 +239,13 @@ export function createBot(): Bot<BotContext> {
     const e = err.error;
 
     if (e instanceof GrammyError) {
+      if (e.description.includes("message is not modified")) {
+        logger.debug(
+          { event: "grammy_message_not_modified", chat_id: ctx.chat?.id },
+          "Telegram API warning: message is not modified",
+        );
+        return;
+      }
       logger.error(
         {
           event: "grammy_error",

@@ -1,139 +1,121 @@
 # AlphaPack Bot
 
-Production-grade Telegram group management bot — TypeScript, grammY, Redis.
+Production-grade Telegram group management bot built with TypeScript, grammY, and Redis.
+
+Optimized specifically for **self-hosting on small VPS systems** with highly constrained resources (e.g. 768 MB or 1 GB RAM).
 
 ---
 
-## Phase 0 (Current)
+## ⚡ Self-Hosted VPS Optimizations
 
-Phase 0 is **foundation only** — the scaffolding, middleware chain, and smoke-test commands are implemented. No moderation, no anti-spam, no welcome messages, no settings menu yet. See the roadmap below for what's coming.
+AlphaPack is optimized to minimize memory footprint and run efficiently in low-resource environments:
 
-### What works now
-
-| Feature | Status |
-|---|---|
-| Long polling (grammY runner) | ✅ |
-| Redis connection with fail-fast startup | ✅ |
-| `/start` DM greeting (i18n) | ✅ |
-| `/ping` and `!ping` health check (proves command parser + i18n) | ✅ |
-| Per-group settings loaded from Redis + YAML defaults | ✅ |
-| Admin list cache (Redis, 5-min TTL) | ✅ |
-| Session storage in Redis | ✅ |
-| Structured JSON logging (pino → PM2) | ✅ |
-| Graceful shutdown (SIGTERM/SIGINT drain) | ✅ |
+*   **Native Redis Mapping:** The bot connects to the host machine's native `redis-server` (via `REDIS_URL` in `.env`). Running a native Redis service avoids the overhead of Docker containers, saving ~80–150 MB of idle memory.
+*   **PM2 Fork Mode:** Configured for single-instance PM2 `fork` mode rather than `cluster` mode to prevent multiple Node.js worker heaps from scaling up memory consumption.
+*   **Memory Restraints:** Launched with node arguments `--max-old-space-size=256` to strictly limit the Node.js V8 heap, with a PM2 safety limit `max_memory_restart: '300M'` to handle unexpected leaks gracefully.
+*   **Long Polling Only:** No webhooks, webhook certificate managers, or additional HTTP web servers are configured.
 
 ---
 
-## Running Locally
+## ⚙️ Configuration & Environment Variables
 
-### Prerequisites
-
-- Node.js ≥ 20
-- Redis running locally (`brew services start redis` on macOS, or `systemctl start redis` on Linux)
-
-### Setup
+All settings are configured using a `.env` file at the root of the project. Copy `.env.example` to get started:
 
 ```bash
 cp .env.example .env
-# Fill in BOT_TOKEN from @BotFather
-# REDIS_URL defaults to redis://127.0.0.1:6379
-
-npm install
-npm run dev       # tsx watch — hot-reload on save
 ```
 
-`npm run dev` uses `tsx watch` so any file change in `src/` restarts the bot automatically. No build step needed during development.
+### Available Environment Keys
 
-### Verify it works
-
-1. Open Telegram, find your bot
-2. Send `/start` in a DM → should reply with the i18n greeting
-3. Send `/ping` → should reply `🏓 Pong! Bot is alive and running.`
-4. Send `!ping` → same reply (proves the command-parser middleware is working)
-5. Check the terminal — you should see structured JSON log output
-
----
-
-## How `/cmd` and `!cmd` Both Work
-
-The `commandParserMiddleware` (`src/middlewares/command-parser.ts`) intercepts messages that start with `!` and rewrites them to `/` before grammY's router sees them.
-
-```
-User sends:    !ping
-Middleware:    rewrites to → /ping
-grammY router: fires bot.command("ping") handler
-```
-
-**Rules:**
-- `!` must be at the very start of the message
-- Must be immediately followed by a word character (letter, digit, `_`)
-- `hello!` and `! ping` are NOT rewritten (prevents accidental triggers)
-- Works for text messages and captions (e.g., `!warn` on a photo)
-
-**No per-command wiring needed** — every future command automatically supports both prefixes.
-
----
-
-## Redis Configuration
-
-The bot connects to your **host machine's native `redis-server`** via `REDIS_URL` in `.env`.
-
-```
-REDIS_URL=redis://127.0.0.1:6379    # default — VPS native Redis
-```
-
-**Do NOT run a second Redis instance in Docker.** The VPS has Redis installed natively to save memory. Containerising Redis on a 768 MB VPS wastes ~80–150 MB idle.
-
-### Startup behaviour
-
-- If Redis is **unreachable** at startup → process exits with a clear diagnostic:
-  ```
-  Cannot connect to Redis at redis://127.0.0.1:6379.
-  → Is redis-server running on the host? Check: systemctl status redis
-  → Is REDIS_URL in .env pointing to the right host/port?
-  ```
-- If Redis goes down **after startup** → bot degrades gracefully:
-  - Session reads/writes are queued or return empty
-  - Group settings fall back to `defaults.yaml` values
-  - ioredis reconnects automatically with exponential back-off
-
----
-
-## No Webhook — Long Polling Only
-
-Webhook mode is **not implemented** and not planned for Phase 0. The bot uses grammY's runner for long polling. There is no Express server, no HTTP listener, and no webhook registration code.
-
-If webhook support is needed in a future phase, it must be explicitly scoped. Do not add HTTP server code without a deliberate architectural decision.
-
----
-
-## Production Deployment (VPS)
-
-### PM2 setup
-
-```bash
-# On the VPS, after copying files and running npm install + npm run build:
-cp .env.example .env
-# Fill in BOT_TOKEN and verify REDIS_URL
-
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup     # auto-start on reboot
-```
-
-PM2 configuration highlights (see `ecosystem.config.js`):
-
-| Setting | Value | Why |
+| Variable | Description | Default |
 |---|---|---|
-| `exec_mode` | `fork` | Cluster mode multiplies memory — avoid on 768 MB VPS |
-| `node_args` | `--max-old-space-size=256` | Caps Node.js heap; leaves headroom for OS + Redis |
-| `max_memory_restart` | `300M` | Safety net: PM2 restarts if RSS exceeds 300 MB |
-| `instances` | `1` | One process — bot is stateful via Redis, not stateless |
+| `BOT_TOKEN` | **Required.** The Telegram Bot token received from [@BotFather](https://t.me/BotFather) | *None* |
+| `REDIS_URL` | Redis server connection string. | `redis://127.0.0.1:6379` |
+| `DEFAULT_LOCALE` | Fallback language code (`id` or `en`). | `id` |
+| `NODE_ENV` | Application environment (`development` or `production`). | `production` |
+| `LOG_LEVEL` | Pino logger output verbosity (`debug`, `info`, `warn`, `error`). | `info` |
+| `BOT_CUSTOM_NAME` | The bot name used in welcome, goodbye, rules, and guide templates. If omitted, falls back to the bot's first name on Telegram. | `Alpha Pack` |
 
-### VPS swap file (recommended for 768 MB)
+---
 
-If you hit OOM during npm install or builds:
+## 🚀 Supported Features
 
+### 1. Unified Command Parser
+All commands support both `/cmd` and `!cmd` syntax out-of-the-box (e.g. `/ping` or `!ping`, `/ban` or `!ban`). The `commandParserMiddleware` handles this automatically at the edge.
+
+### 2. Auto-Moderation & Enforcement
+*   **Warnings (`/warn` / `!warn`):** Issues warnings to bad actors. Warns persist in Redis and trigger automatic ban escalation when reaching the warning threshold.
+*   **Mutes (`/mute` / `!mute`):** Temporarily or permanently restricts users from sending messages.
+*   **Bans (`/ban` / `!ban`):** Permanent ban from the group.
+*   **Temp-Bans (`/tban` / `!tban`):** Restricts a user for a duration. Unban is handled automatically by a Redis sorted-set scheduler daemon.
+*   **Manual Unbans/Unmutes (`/unban`, `/unmute`):** Restores member permissions manually.
+
+### 3. Anti-Flood & Captcha Gate
+*   **Anti-Flood:** Automatically detects rapid message spam (sliding window threshold). Punishes offenders with a timed mute.
+*   **Captcha Gate:** New members are restricted immediately upon joining. They must solve an inline button captcha ("I'm not a robot") within a configurable timeout or they are automatically kicked.
+
+### 4. Welcome & Goodbye Messages
+*   Supports HTML templates with placeholders: `{user_displayname}`, `{user_id}`, `{user_username}`, `{group_name}`, and `{bot_name}`. Link previews are automatically enabled.
+
+### 5. Mentions & Reports
+*   **Admin Relay:** When a user tags `@admin` in a group, the message is relayed to group admins in their DMs. Admins can claim and resolve reports directly from DMs.
+*   **Username Notifications:** Relays mentions of specific user handles to target users via DM if they've registered.
+
+### 6. Interactive Settings Control Panel (`/settings`)
+*   Accessible only via Private Messages (DM) with the bot. Triggering it in a group sends a secure deep-link button to DM.
+*   Allows toggling settings (Welcome, Goodbye, Captcha, Anti-Flood, Admin Relay, Username Notify, etc.) and updating templates (Rules, Guide, Welcome/Goodbye text) in real-time.
+*   Uses a robust Redis-backed handoff state for multi-step editing conversations to prevent grammY replay engine crashes.
+
+---
+
+## 🚧 Under Development Features
+
+The settings control panel contains placeholders for the following features that are currently scoped as under development. Clicking these buttons will trigger a popup notifying the admin:
+
+*   **🔤 Alphabets**
+*   **🖼️ Media**
+*   **💂🏼 Sentry**
+
+---
+
+## 🛠️ Commands List
+
+### Admin Commands (Group Only)
+*   `!warn` / `/warn` [reply to message] — Warn a user
+*   `!mute` / `/mute` [reply to message] — Mute a user
+*   `!tban` / `/tban` [duration] [reply to message] — Temp-ban a user (e.g. `!tban 1d`)
+*   `!ban` / `/ban` [reply to message] — Ban a user
+*   `!unban` / `/unban` [username or ID] — Unban a user
+*   `!unmute` / `/unmute` [username or ID] — Unmute a user
+*   `!settings` / `/settings` — Trigger settings configuration panel (redirects to DM)
+
+### Public Commands
+*   `!ping` / `/ping` — Smoke-test bot liveness
+*   `!rules` / `/rules` — Display the group's rules text (with link previews enabled)
+*   `!guide` / `/guide` — Display the group's guide text (with link previews enabled)
+
+---
+
+## 🚢 Production Deployment (VPS)
+
+On your host machine, install PM2 globally:
+```bash
+npm install -g pm2
+```
+
+1.  Build the TypeScript project:
+    ```bash
+    npm run build
+    ```
+2.  Start the daemon using the bundled ecosystem config:
+    ```bash
+    pm2 start ecosystem.config.js
+    pm2 save
+    pm2 startup
+```
+
+### VPS Swap File (Recommended for 768 MB RAM VPS)
+If you run out of memory during `npm install` or `tsc` compilation on a small VPS, configure a swap partition:
 ```bash
 sudo fallocate -l 1G /swapfile
 sudo chmod 600 /swapfile
@@ -144,70 +126,31 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 
 ---
 
-## Project Structure
+## 📂 Project Structure
 
 ```
 src/
-├── bot.ts                     # Bot assembly, middleware chain, command handlers
-├── index.ts                   # Entrypoint: env → redis → bot → runner
+├── bot.ts                     # Bot bootstrap, middleware pipeline, and main routing
+├── index.ts                   # Entrypoint (validates env, connects to Redis, starts runner)
 ├── config/
-│   ├── env.ts                 # Zod-validated env loader (fail-fast)
-│   └── defaults.yaml          # Per-group default settings skeleton
+│   ├── env.ts                 # Zod-validated environment config
+│   └── defaults.yaml          # Fallback default values for group settings
 ├── db/
-│   ├── redis.ts               # ioredis singleton, connect(), healthcheck()
-│   └── keys.ts                # Central Redis key naming (all key strings live here)
-├── i18n/
-│   ├── en/translation.ftl     # English strings (Project Fluent format)
-│   └── id/translation.ftl     # Indonesian strings
+│   ├── redis.ts               # Redis connection manager and status checks
+│   └── keys.ts                # Central index for all Redis key naming namespaces
+├── i18n/                      # Fluent (.ftl) translation files (en, id)
 ├── middlewares/
-│   ├── command-parser.ts      # ! → / prefix normalisation
-│   ├── admin-guard.ts         # isGroupAdmin() + requireAdmin() with Redis cache
-│   ├── group-settings.ts      # ctx.groupSettings loader + getGroupSettings()
-│   ├── logger.ts              # Audit logger middleware
-│   └── anti-spam.ts           # Phase 0 stub (Phase 2 implementation)
-├── types/
-│   ├── context.ts             # BotContext flavor chain
-│   └── settings.ts            # GroupSettings interface
-├── utils/
-│   ├── logger.ts              # Shared pino instance
-│   └── permissions.ts         # isAdmin() (uncached, direct API)
-└── features/                  # Phase 2+ handlers (stubs only in Phase 0)
-    ├── moderation/            # warn, mute, tban, ban (Phase 2)
-    ├── anti-spam/             # flood-guard, link-filter (Phase 2)
-    ├── welcome/               # on-join, on-leave (Phase 3)
-    ├── mentions/              # admin-mention relay (Phase 3)
-    ├── settings/              # /settings menu (Phase 5)
-    └── scheduler/             # tban expiry unban (Phase 2)
+│   ├── command-parser.ts      # Transforms !cmd into /cmd
+│   ├── admin-guard.ts         # Gated access decorator for admin-only commands
+│   ├── group-settings.ts      # Preloads settings from Redis/defaults into ctx
+│   └── username-tracker.ts    # Maps Usernames to IDs on messages to resolve targets
+├── types/                     # TypeScript types (context, group settings models)
+├── utils/                     # Utility libraries (logger, placeholder formatting)
+└── features/                  # Business logic submodules
+    ├── moderation/            # Warn, Mute, Ban handlers
+    ├── anti-spam/             # Rate limiters & flood guards
+    ├── welcome/               # Member join/leave hooks & Captcha mechanics
+    ├── mentions/              # Admin relays & User notifications
+    ├── settings/              # Settings menu inline-keyboard and conversation flows
+    └── scheduler/             # Cron daemon for processing scheduled unban/unmutes
 ```
-
----
-
-## Roadmap
-
-| Phase | Scope |
-|---|---|
-| **0** ✅ | Foundation: env, Redis, i18n, session, command-parser, admin-guard, /start, /ping |
-| **2** | Moderation: warn, mute, tban, ban, unban, flood guard, link filter |
-| **3** | Welcome/goodbye messages, @admin mention relay |
-| **4** | Unban scheduler (node-cron watching tban TTL keys) |
-| **5** | /settings inline menu, per-group config persistence |
-
----
-
-## i18n
-
-Locale files are in `src/i18n/<locale>/` using [Project Fluent](https://projectfluent.org/) `.ftl` format.
-
-```ftl
-# src/i18n/en/translation.ftl
-ping-response = 🏓 Pong! Bot is alive and running.
-start-greeting =
-    Hello! I'm AlphaPack 🤖
-    ...
-```
-
-The active locale is determined by:
-1. `ctx.session.locale` (user override — Phase 5)
-2. `DEFAULT_LOCALE` env var (fallback)
-
-Switch `DEFAULT_LOCALE=en` in `.env` to default to English.

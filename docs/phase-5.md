@@ -145,12 +145,7 @@ input, following the same "Back to menu" navigation pattern throughout:
 - **Tag** → per your confirmation, this is the SAME setting as Phase 4's
   `mentions.userNotify.enabled` — just expose the existing toggle and its
   `cooldownSeconds` here under the "Tag" label. Do not build a second feature.
-- **Resolution Group** → reuse Phase 1's `/warnmsg` conversation (the custom
-  ban-message-template + appeal-group-link flow) under the hood, triggered from this
-  menu item instead of only via the standalone command. If that conversation isn't
-  structured in a way that's easily re-triggered from a menu button, refactor it into
-  a shared function both the command and the menu button call — don't duplicate the
-  logic.
+- **Resolution Group** → reuse Phase 1's custom ban-message-template + appeal-group-link flow under the hood, triggered from this menu item.
 - **Moderation** → per Part A3 above
 - **Rules** → per Part A2 above
 - **Custom Name** → per Part A1 above
@@ -211,8 +206,7 @@ setting.
       one via the new menu, confirm it takes effect the same way the old standalone
       command would have — e.g. toggle Welcome off via the menu, confirm `/welcome`
       command's own status check now reflects it)
-- [ ] Resolution Group menu item triggers the same underlying flow as `/warnmsg`
-      without duplicated logic
+- [ ] Resolution Group menu item triggers the custom ban template flow
 - [ ] Freshly checked-out/deployed defaults have EVERY toggleable feature (Moderation
       warn/tban/ban/mute, floodGuard, welcome, goodbye, captcha, adminRelay,
       userNotify) set to `enabled: false` — confirm no earlier-phase `enabled: true`
