@@ -145,14 +145,43 @@ export async function removeWarnHandler(ctx: BotContext): Promise<void> {
 
   const redis = getRedisClient();
   const key = warnKey(chatId, targetId);
-  const count = await redis.decr(key);
+  let count = await redis.decr(key);
   if (count < 0) {
+    count = 0;
     await redis.set(key, 0);
   }
 
+  const threshold = ctx.groupSettings?.warnThreshold ?? 5;
+
+  // Fetch target user info to format name properly
+  let targetDisplayName = "User";
+  let targetUsername: string | undefined;
   try {
-    await ctx.editMessageReplyMarkup();
-  } catch (e) {}
+    const member = await ctx.api.getChatMember(chatId, targetId);
+    targetDisplayName = [member.user.first_name, member.user.last_name].filter(Boolean).join(" ") || "User";
+    targetUsername = member.user.username;
+  } catch (e) {
+    const { logger } = await import("../../utils/logger.js");
+    logger.warn({ err: e, targetId }, "Failed to fetch user details in removeWarnHandler");
+  }
+
+  const targetLabel = formatUserMention(targetId, targetDisplayName, targetUsername);
+  const updatedText = ctx.t("reply_warn_removed", {
+    target: "TARGET_PLACEHOLDER",
+    count: count.toString(),
+    threshold: threshold.toString(),
+  }).replace("TARGET_PLACEHOLDER", targetLabel);
+
+  try {
+    // Edit both the text and remove the inline keyboard markup in one call
+    await ctx.editMessageText(updatedText, {
+      parse_mode: "HTML",
+      reply_markup: { inline_keyboard: [] },
+    });
+  } catch (e) {
+    const { logger } = await import("../../utils/logger.js");
+    logger.error({ err: e }, "Failed to update warn card message in removeWarnHandler");
+  }
 
   await ctx.answerCallbackQuery(ctx.t("warn_removed"));
 }

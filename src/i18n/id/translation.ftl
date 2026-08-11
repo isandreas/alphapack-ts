@@ -39,6 +39,7 @@ reply_tbanned =
 
     Alasan: { $reason }
 reply_unbanned = 🕊️ { $target } telah dibuka blokirnya.
+reply_unbanned_reset = 🕊️ { $target } telah dibuka blokirnya. (Penghitung peringatan disetel ulang ke 0)
 reply_flood_muted = 🔇 { $target } telah dibisukan otomatis selama { $duration } karena mengirim pesan terlalu cepat.
 
 # Helpers
@@ -47,6 +48,7 @@ reason_warn_limit_reached = Diblokir secara otomatis karena mencapai batas perin
 error_generic = ❌ Terjadi kesalahan.
 btn_remove_warn = ➖ Hapus Peringatan (-1)
 warn_removed = ✅ Peringatan dihapus.
+reply_warn_removed = ✅ Peringatan dihapus untuk { $target } ({ $count }/{ $threshold }).
 rejoin_group_btn = 🔗 Bergabung Kembali
 group_tban_expired = 🕊️ Blokir sementara { $target } telah kedaluwarsa.
 

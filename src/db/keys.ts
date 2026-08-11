@@ -193,3 +193,15 @@ export function startedUsersKey(): string {
 export function settingsEditKey(userId: number): string {
   return `${NS}:settings_edit:${userId}`;
 }
+
+// ── Command Cooldowns ──────────────────────────────────────────────────────────
+
+/**
+ * Redis key for command rate-limiting/cooldowns (e.g. /rules and /guide).
+ *
+ * @example commandCooldownKey(-1001234567890, "rules") → "alphapack:-1001234567890:cooldown:rules"
+ */
+export function commandCooldownKey(chatId: number, command: "rules" | "guide"): string {
+  return `${NS}:${chatId}:cooldown:${command}`;
+}
+

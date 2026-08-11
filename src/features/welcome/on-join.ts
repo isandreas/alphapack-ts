@@ -63,15 +63,8 @@ export async function onJoinHandler(ctx: BotContext): Promise<void> {
       }
 
       // 1b. Build challenge message
-      let msgText = "";
-      if (welcomeEnabled) {
-        msgText = replacePlaceholders(settings.welcome.template, {
-          user: member,
-          groupName,
-          botName,
-        }) + "\n\n";
-      }
-      msgText += `⚠️ Click the button below to verify you are not a robot and unmute yourself.`;
+      const targetLabel = `<a href="tg://user?id=${member.id}">${member.first_name}</a>`;
+      const msgText = `⚠️ ${targetLabel}, click the button below to verify you are not a robot and unmute yourself.`;
 
       const replyMarkup = {
         inline_keyboard: [

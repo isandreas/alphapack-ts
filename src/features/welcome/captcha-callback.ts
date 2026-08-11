@@ -88,11 +88,28 @@ export async function captchaCallbackHandler(ctx: BotContext): Promise<void> {
   // 3. Remove the scheduled captcha timeout kick
   await removePendingCaptchaKick(chatId, targetUserId);
 
-  // 4. Update the challenge message to success state
+  // 4. Update the challenge message to success state (preserving welcome message if enabled)
   try {
-    await ctx.editMessageText("✅ Verification successful! Welcome to the group.");
+    const settings = ctx.groupSettings;
+    const welcomeEnabled = settings?.welcome?.enabled;
+    if (welcomeEnabled && settings?.welcome?.template && ctx.from) {
+      const { replacePlaceholders } = await import("../../utils/placeholder.js");
+      const groupName = (ctx.chat && "title" in ctx.chat ? ctx.chat.title : "Group") || "Group";
+      const botName = process.env.BOT_CUSTOM_NAME || ctx.me.first_name;
+      const welcomeText = replacePlaceholders(settings.welcome.template, {
+        user: ctx.from,
+        groupName,
+        botName,
+      });
+      await ctx.editMessageText(welcomeText, {
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: false },
+      });
+    } else {
+      await ctx.editMessageText("✅ Verification successful! Welcome to the group.");
+    }
   } catch (err: unknown) {
-    logger.warn({ err, event: "captcha_message_edit_failed", chatId, targetId: targetUserId }, "Failed to edit captcha message to success state");
+    logger.warn({ err, event: "captcha_message_edit_failed", chatId, targetId: targetUserId }, "Failed to edit captcha message to success/welcome state");
   }
 
   await ctx.answerCallbackQuery({ text: "✅ Verification successful!" });

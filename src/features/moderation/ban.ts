@@ -240,6 +240,16 @@ export async function unbanHandler(ctx: BotContext): Promise<void> {
   const redis = getRedisClient();
   await redis.del(tbanKey(chatId, target.userId));
 
+  // Warn counter check and reset if threshold reached
+  const { warnKey } = await import("../../db/keys.js");
+  const warnKeyVal = warnKey(chatId, target.userId);
+  const currentWarns = parseInt((await redis.get(warnKeyVal)) || "0", 10);
+  const threshold = ctx.groupSettings?.warnThreshold ?? 5;
+  const isReset = currentWarns >= threshold;
+  if (isReset) {
+    await redis.del(warnKeyVal);
+  }
+
   let inviteLink: string | undefined;
   try {
     inviteLink = await ctx.api.exportChatInviteLink(chatId);
@@ -275,7 +285,8 @@ export async function unbanHandler(ctx: BotContext): Promise<void> {
     customMessage,
   });
 
-  const replyText = ctx.t("reply_unbanned", {
+  const translationKey = isReset ? "reply_unbanned_reset" : "reply_unbanned";
+  const replyText = ctx.t(translationKey, {
     target: "TARGET_PLACEHOLDER",
   }).replace("TARGET_PLACEHOLDER", formatUserMention(target.userId, target.displayName, target.username));
 

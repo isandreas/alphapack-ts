@@ -39,6 +39,7 @@ reply_tbanned =
 
     Reason: { $reason }
 reply_unbanned = 🕊️ { $target } has been unbanned.
+reply_unbanned_reset = 🕊️ { $target } has been unbanned. (Warning counter reset to 0)
 reply_flood_muted = 🔇 { $target } has been auto-muted for { $duration } for sending messages too quickly.
 
 # Helpers
@@ -47,6 +48,7 @@ reason_warn_limit_reached = Automatically banned for reaching the warning limit.
 error_generic = ❌ An error occurred.
 btn_remove_warn = ➖ Remove Warning (-1)
 warn_removed = ✅ Warning removed.
+reply_warn_removed = ✅ Warning removed for { $target } ({ $count }/{ $threshold }).
 rejoin_group_btn = 🔗 Rejoin Group
 group_tban_expired = 🕊️ { $target }'s temporary ban has expired.
 
