@@ -102,16 +102,24 @@ export async function onJoinHandler(ctx: BotContext): Promise<void> {
 
     } else if (welcomeEnabled) {
       // 2. Captcha disabled but welcome enabled
-      const welcomeText = replacePlaceholders(settings.welcome.template, {
+      const welcomeTextRaw = replacePlaceholders(settings.welcome.template, {
         user: member,
         groupName,
         botName,
       });
+
+      const { parseWelcomeButtons } = await import("../../utils/placeholder.js");
+      const { text: welcomeText, inlineKeyboard } = parseWelcomeButtons(welcomeTextRaw);
+
       try {
-        await ctx.reply(welcomeText, {
+        const replyOpts: any = {
           parse_mode: "HTML",
-          link_preview_options: { is_disabled: true },
-        });
+          link_preview_options: { is_disabled: false },
+        };
+        if (inlineKeyboard) {
+          replyOpts.reply_markup = { inline_keyboard: inlineKeyboard };
+        }
+        await ctx.reply(welcomeText, replyOpts);
       } catch (err: unknown) {
         logger.error({ err, event: "welcome_send_failed", chatId, targetId: member.id }, "Failed to send welcome message");
       }

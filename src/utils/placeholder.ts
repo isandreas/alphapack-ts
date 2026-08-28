@@ -55,3 +55,52 @@ export function replacePlaceholders(
 
   return text;
 }
+
+export interface ParsedButtonsText {
+  text: string;
+  inlineKeyboard?: Array<Array<{ text: string; url: string }>> | undefined;
+}
+
+/**
+ * Parses bracketed buttons of the form `[ Button Label | Link ]` from a message.
+ * Buttons on the same line are grouped into the same row in the inline keyboard.
+ * Buttons on separate lines populate separate rows.
+ * All parsed button syntax is removed from the resulting text message body.
+ */
+export function parseWelcomeButtons(text: string): ParsedButtonsText {
+  const lines = text.split("\n");
+  const finalLines: string[] = [];
+  const keyboardRows: Array<Array<{ text: string; url: string }>> = [];
+
+  const buttonRegex = /\[\s*([^|\]]+?)\s*\|\s*([^\s\]]+?)\s*\]/g;
+
+  for (const line of lines) {
+    let match;
+    const row: Array<{ text: string; url: string }> = [];
+
+    buttonRegex.lastIndex = 0;
+    while ((match = buttonRegex.exec(line)) !== null) {
+      const label = match[1].trim();
+      const url = match[2].trim();
+      row.push({ text: label, url });
+    }
+
+    if (row.length > 0) {
+      keyboardRows.push(row);
+      const cleanLine = line.replace(buttonRegex, "").trim();
+      if (cleanLine.length > 0) {
+        finalLines.push(cleanLine);
+      }
+    } else {
+      finalLines.push(line);
+    }
+  }
+
+  const cleanedText = finalLines.join("\n").trim();
+
+  return {
+    text: cleanedText,
+    inlineKeyboard: keyboardRows.length > 0 ? keyboardRows : undefined,
+  };
+}
+

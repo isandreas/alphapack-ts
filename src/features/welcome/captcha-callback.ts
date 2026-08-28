@@ -93,18 +93,23 @@ export async function captchaCallbackHandler(ctx: BotContext): Promise<void> {
     const settings = ctx.groupSettings;
     const welcomeEnabled = settings?.welcome?.enabled;
     if (welcomeEnabled && settings?.welcome?.template && ctx.from) {
-      const { replacePlaceholders } = await import("../../utils/placeholder.js");
+      const { replacePlaceholders, parseWelcomeButtons } = await import("../../utils/placeholder.js");
       const groupName = (ctx.chat && "title" in ctx.chat ? ctx.chat.title : "Group") || "Group";
       const botName = process.env.BOT_CUSTOM_NAME || ctx.me.first_name;
-      const welcomeText = replacePlaceholders(settings.welcome.template, {
+      const welcomeTextRaw = replacePlaceholders(settings.welcome.template, {
         user: ctx.from,
         groupName,
         botName,
       });
-      await ctx.editMessageText(welcomeText, {
+      const { text: welcomeText, inlineKeyboard } = parseWelcomeButtons(welcomeTextRaw);
+      const editOpts: any = {
         parse_mode: "HTML",
         link_preview_options: { is_disabled: false },
-      });
+      };
+      if (inlineKeyboard) {
+        editOpts.reply_markup = { inline_keyboard: inlineKeyboard };
+      }
+      await ctx.editMessageText(welcomeText, editOpts);
     } else {
       await ctx.editMessageText("✅ Verification successful! Welcome to the group.");
     }

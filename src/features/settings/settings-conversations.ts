@@ -1,7 +1,6 @@
 import type { Conversation } from "@grammyjs/conversations";
 import type { BotContext } from "../../types/context.js";
 import { setGroupSetting } from "../../middlewares/group-settings.js";
-import { sendSettingsMenu } from "./settings-menu.js";
 
 type SettingsConversation = Conversation<BotContext, BotContext>;
 
@@ -54,7 +53,7 @@ export async function settingsEditorConversation(
   }
 
   const state = JSON.parse(stateStr);
-  const { chatId, settingKey, validation, submenu } = state;
+  const { chatId, settingKey, validation } = state;
 
   const promptMsg = validation === "template"
     ? `✏️ Send the new template for <b>${settingKey}</b>:\n\n${TEMPLATE_KEYS_HELP}\n\nSend /cancel to abort.`
@@ -131,111 +130,9 @@ export async function settingsEditorConversation(
   // ✅ Safe: setGroupSetting talks to Redis — must run via external().
   await conversation.external(() => setGroupSetting(chatId, settingKey, value!));
 
-  // Re-open the settings panel to the correct submenu.
-  await sendSettingsMenu(ctx, chatId, submenu);
-}
-
-/**
- * Dedicated conversation to configure Custom Ban Template (Resolution Group).
- * Prompts for template text, button label, and button url.
- */
-export async function resolutionGroupConversation(
-  conversation: SettingsConversation,
-  ctx: BotContext,
-): Promise<void> {
-  const userId = ctx.from?.id;
-  if (!userId) {
-    await ctx.reply("❌ Unable to identify user.");
-    return;
-  }
-
-  // ✅ Safe: external() captures session value during real execution.
-  const stateStr = await conversation.external(async () => {
-    const { getRedisClient } = await import("../../db/redis.js");
-    const { settingsEditKey } = await import("../../db/keys.js");
-    const redis = getRedisClient();
-    return redis.get(settingsEditKey(userId));
-  });
-
-  if (!stateStr) {
-    await ctx.reply("❌ No active edit session found.");
-    return;
-  }
-
-  const state = JSON.parse(stateStr);
-  const chatId = state.chatId;
-
-  if (!chatId) {
-    await ctx.reply("❌ No group context found.");
-    return;
-  }
-
-  // 1. Prompt for template text
-  await ctx.reply(
-    `✏️ Enter the custom ban message template text:\n\n${TEMPLATE_KEYS_HELP}\n\nSend /cancel to abort.`,
-    { parse_mode: "HTML" }
-  );
-
-  let text = "";
-  while (true) {
-    const nextCtx = await conversation.waitFor("message:text");
-    const raw = nextCtx.message.text?.trim() || "";
-
-    if (raw === "/cancel") {
-      await nextCtx.reply("❌ Editing cancelled.");
-      return;
-    }
-    if (!raw) {
-      await nextCtx.reply("❌ Template text cannot be empty. Enter text:");
-      continue;
-    }
-
-    const matches = raw.match(/{([^}]+)}/g) || [];
-    let ok = true;
-    for (const m of matches) {
-      const placeholder = m.slice(1, -1);
-      if (!ALLOWED_PLACEHOLDERS.includes(placeholder)) {
-        await nextCtx.reply(
-          `❌ Invalid placeholder <code>{${placeholder}}</code>.\n\n${TEMPLATE_KEYS_HELP}\n\nTry again:`,
-          { parse_mode: "HTML" }
-        );
-        ok = false;
-        break;
-      }
-    }
-    if (ok) { text = raw; break; }
-  }
-
-  // 2. Prompt for button label
-  await ctx.reply("✏️ Enter the label for the appeal button (e.g. 'Appeal Ban') or send /skip to leave it empty:");
-  const nextLabelCtx = await conversation.waitFor("message:text");
-  let buttonLabel = nextLabelCtx.message.text?.trim() || "";
-  if (buttonLabel === "/skip") buttonLabel = "";
-
-  // 3. Prompt for button URL (if label was provided)
-  let buttonUrl = "";
-  if (buttonLabel) {
-    await ctx.reply("✏️ Enter the URL for the appeal button (e.g. https://t.me/your_appeal_group):");
-    while (true) {
-      const nextUrlCtx = await conversation.waitFor("message:text");
-      buttonUrl = nextUrlCtx.message.text?.trim() || "";
-      if (!buttonUrl.startsWith("http://") && !buttonUrl.startsWith("https://")) {
-        await nextUrlCtx.reply("❌ Invalid URL. Must start with http:// or https://. Try again:");
-        continue;
-      }
-      break;
-    }
-  }
-
-  // ✅ Safe: Redis writes must go through external().
-  await conversation.external(async () => {
-    await setGroupSetting(chatId, "customBanTemplate.text", text);
-    await setGroupSetting(chatId, "customBanTemplate.buttonLabel", buttonLabel || null);
-    await setGroupSetting(chatId, "customBanTemplate.buttonUrl", buttonUrl || null);
-  });
-
-  await ctx.reply("✅ Custom Ban Template updated successfully!");
-  await sendSettingsMenu(ctx, chatId, "resolution");
+  // We cannot send a grammY Menu from inside a conversation (no middleware chain).
+  // Just confirm and tell the admin to reopen settings.
+  await ctx.reply("✅ Setting saved! Use /settings to return to the panel.");
 }
 
 

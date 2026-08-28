@@ -76,7 +76,6 @@ export async function banUser(ctx: BotContext, opts: BanOptions): Promise<void> 
     action,
     reason: opts.reason,
     duration: durationStr,
-    customMessage: opts.isAutoBan || action === "ban" ? ctx.groupSettings?.customBanTemplate : undefined,
   });
 
   const i18nKey = action === "tban" ? "reply_tbanned" : "reply_banned";

@@ -62,7 +62,31 @@ export async function notifyTargetAndLog(
     let dmText = "";
     let replyMarkup: InlineKeyboardMarkup | undefined = undefined;
 
-    if (opts.customMessage) {
+    // Build default i18n message
+    const i18nPrefix = `dm_${opts.action}`;
+    const defaultDmText = ctx.t(i18nPrefix, {
+      group: (ctx.chat && "title" in ctx.chat && ctx.chat.title) ? ctx.chat.title : "the group",
+      reason: opts.reason || ctx.t("no_reason_provided"),
+      duration: opts.duration || "",
+      count: opts.warnCount?.toString() || "",
+      threshold: opts.warnThreshold?.toString() || "",
+    });
+
+    let customTemplate = "";
+    if (opts.action === "ban" || opts.action === "warn") {
+      const bm = ctx.groupSettings?.banMessage;
+      if (bm?.enabled && bm.template) {
+        customTemplate = bm.template;
+      }
+    } else if (opts.action === "tban") {
+      const tbm = ctx.groupSettings?.tbanMessage;
+      if (tbm?.enabled && tbm.template) {
+        customTemplate = tbm.template;
+      }
+    }
+
+    if (opts.action === "unban" && opts.customMessage) {
+      // Replacement behavior for unban
       dmText = opts.customMessage.text;
       if (opts.customMessage.buttonLabel && opts.customMessage.buttonUrl) {
         replyMarkup = {
@@ -76,16 +100,21 @@ export async function notifyTargetAndLog(
           ],
         };
       }
-    } else {
-      // Build default i18n message
-      const i18nPrefix = `dm_${opts.action}`;
-      dmText = ctx.t(i18nPrefix, {
-        group: (ctx.chat && "title" in ctx.chat && ctx.chat.title) ? ctx.chat.title : "the group",
-        reason: opts.reason || ctx.t("no_reason_provided"),
-        duration: opts.duration || "",
-        count: opts.warnCount?.toString() || "",
-        threshold: opts.warnThreshold?.toString() || "",
+    } else if (customTemplate) {
+      // Append behavior for ban/tban/warn custom templates
+      const { replacePlaceholders, parseWelcomeButtons } = await import("./placeholder.js");
+      const resolvedCustom = replacePlaceholders(customTemplate, {
+        user: { id: opts.userId, first_name: opts.displayName || "", username: opts.username },
+        groupName: (ctx.chat && "title" in ctx.chat && ctx.chat.title) ? ctx.chat.title : "the group",
+        botName: process.env.BOT_CUSTOM_NAME || ctx.me.first_name,
       });
+      const { text: cleanCustomText, inlineKeyboard } = parseWelcomeButtons(resolvedCustom);
+      dmText = `${defaultDmText}\n\n${cleanCustomText}`;
+      if (inlineKeyboard) {
+        replyMarkup = { inline_keyboard: inlineKeyboard };
+      }
+    } else {
+      dmText = defaultDmText;
     }
 
     const sendOpts: any = {};

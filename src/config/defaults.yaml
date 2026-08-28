@@ -34,6 +34,12 @@ moderation:
 # --- Moderation (Phase 2) ---
 warnThreshold: 5       # auto-action after N warns
 logChannelId: null     # Telegram channel ID for audit logs (null = disabled)
+banMessage:
+  enabled: false
+  template: ""
+tbanMessage:
+  enabled: false
+  template: ""
 
 # --- Features toggle map (Phase 2+) ---
 # Each key corresponds to a feature module. Set false to disable globally.

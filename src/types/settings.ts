@@ -22,11 +22,16 @@ export interface GroupSettings {
   /** Feature toggle map — each key is a feature name, value is enabled bool. */
   features: Record<string, boolean>;
 
-  /** Custom message template for automated bans (e.g., hitting warn threshold). */
-  customBanTemplate?: {
-    text: string;
-    buttonLabel?: string;
-    buttonUrl?: string;
+  /** Custom message template and toggle for automated/permanent bans. */
+  banMessage: {
+    enabled: boolean;
+    template: string;
+  };
+
+  /** Custom message template and toggle for temporary bans. */
+  tbanMessage: {
+    enabled: boolean;
+    template: string;
   };
 
   /** Anti-spam flood guard configuration. */

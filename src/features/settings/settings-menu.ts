@@ -79,12 +79,27 @@ export async function getMenuCaption(_ctx: BotContext, chatId: number, page: str
         `• Enabled: <b>${settings.mentions.userNotify.enabled ? "Yes" : "No"}</b>\n` +
         `• Cooldown Seconds: <b>${settings.mentions.userNotify.cooldownSeconds}s</b>`;
 
-    case "resolution":
-      const bt = settings.customBanTemplate;
-      return `⚙️ <b>Resolution Group (Ban Template)</b>\n\nConfigure custom message sent when users are auto-banned.\n\n` +
-        `• Template Text:\n<pre>${escape(bt?.text || "Not configured (default i18n used)")}</pre>\n` +
-        `• Button Label: <code>${escape(bt?.buttonLabel || "None")}</code>\n` +
-        `• Button URL: <code>${escape(bt?.buttonUrl || "None")}</code>`;
+    case "ban-message":
+      const bm = settings.banMessage || { enabled: false, template: "" };
+      return `⚙️ <b>Ban Custom Message</b>\n\nConfigure custom message text (supports placeholders and inline buttons) to be appended after the default ban DM.\n\n` +
+        `• Enabled: <b>${bm.enabled ? "Yes" : "No"}</b>\n` +
+        `• Template:\n<pre>${escape(bm.template || "Not configured")}</pre>\n` +
+        `<b>Available keys:</b>\n` +
+        `<code>{user_displayname}</code> — clickable mention link\n` +
+        `<code>{user_id}</code> — Telegram user ID\n` +
+        `<code>{user_username}</code> — @username or first name\n` +
+        `<code>{group_name}</code> — group title`;
+
+    case "tban-message":
+      const tbm = settings.tbanMessage || { enabled: false, template: "" };
+      return `⚙️ <b>Temp Ban Custom Message</b>\n\nConfigure custom message text (supports placeholders and inline buttons) to be appended after the default temp ban DM.\n\n` +
+        `• Enabled: <b>${tbm.enabled ? "Yes" : "No"}</b>\n` +
+        `• Template:\n<pre>${escape(tbm.template || "Not configured")}</pre>\n` +
+        `<b>Available keys:</b>\n` +
+        `<code>{user_displayname}</code> — clickable mention link\n` +
+        `<code>{user_id}</code> — Telegram user ID\n` +
+        `<code>{user_username}</code> — @username or first name\n` +
+        `<code>{group_name}</code> — group title`;
 
     case "lang":
       return `⚙️ <b>Language Override</b>\n\nSelect the preferred locale for bot replies in this group.\n\nCurrent: <b>${localeLabel}</b>`;
@@ -147,6 +162,9 @@ async function enterEditor(
   if (!userId) return;
   const redis = getRedisClient();
   await redis.setex(settingsEditKey(userId), 300, JSON.stringify(state));
+  try {
+    await ctx.answerCallbackQuery();
+  } catch (e) {}
   await ctx.conversation.enter("settingsEditor");
 }
 
@@ -249,6 +267,15 @@ const moderationMenu = new Menu<BotContext>("moderation-menu")
     const chatId = ctx.session.settingsChatId;
     if (!chatId) return;
     await enterEditor(ctx, { chatId, settingKey: "warnThreshold", validation: "number", submenu: "moderation" });
+  })
+  .row()
+  .submenu("🔨 Ban Message", "ban-message-menu", async (ctx) => {
+    const chatId = ctx.session.settingsChatId;
+    if (chatId) await editCaption(ctx, chatId, "ban-message");
+  })
+  .submenu("⏳ Temp Ban Message", "tban-message-menu", async (ctx) => {
+    const chatId = ctx.session.settingsChatId;
+    if (chatId) await editCaption(ctx, chatId, "tban-message");
   })
   .row()
   .back("🔙 Back", async (ctx) => {
@@ -417,21 +444,54 @@ const usernameMenu = new Menu<BotContext>("username-menu")
     if (chatId) await editCaption(ctx, chatId, "main");
   });
 
-// 10. Resolution Group Menu
-const resolutionMenu = new Menu<BotContext>("resolution-menu")
-  .text("✏️ Editing...", async (ctx) => {
-    const userId = ctx.from?.id;
-    const chatId = ctx.session.settingsChatId;
-    if (userId && chatId) {
-      const redis = getRedisClient();
-      await redis.setex(settingsEditKey(userId), 300, JSON.stringify({ chatId }));
+// 10. Ban Message Menu
+const banMessageMenu = new Menu<BotContext>("ban-message-menu")
+  .text(
+    (ctx) => `Ban Message: ${ctx.groupSettings?.banMessage?.enabled ? "🟢 ON" : "🔴 OFF"}`,
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.banMessage?.enabled ?? false;
+      await updateSettingAndReload(ctx, chatId, "banMessage.enabled", !current);
+      await editCaption(ctx, chatId, "ban-message");
+      ctx.menu.update();
     }
-    await ctx.conversation.enter("resolutionGroupEditor");
+  )
+  .row()
+  .text("✏️ Edit Template", async (ctx) => {
+    const chatId = ctx.session.settingsChatId;
+    if (!chatId) return;
+    await enterEditor(ctx, { chatId, settingKey: "banMessage.template", validation: "template", submenu: "ban-message" });
   })
   .row()
   .back("🔙 Back", async (ctx) => {
     const chatId = ctx.session.settingsChatId;
-    if (chatId) await editCaption(ctx, chatId, "main");
+    if (chatId) await editCaption(ctx, chatId, "moderation");
+  });
+
+// 10b. Temp Ban Message Menu
+const tbanMessageMenu = new Menu<BotContext>("tban-message-menu")
+  .text(
+    (ctx) => `Temp Ban Message: ${ctx.groupSettings?.tbanMessage?.enabled ? "🟢 ON" : "🔴 OFF"}`,
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.tbanMessage?.enabled ?? false;
+      await updateSettingAndReload(ctx, chatId, "tbanMessage.enabled", !current);
+      await editCaption(ctx, chatId, "tban-message");
+      ctx.menu.update();
+    }
+  )
+  .row()
+  .text("✏️ Edit Template", async (ctx) => {
+    const chatId = ctx.session.settingsChatId;
+    if (!chatId) return;
+    await enterEditor(ctx, { chatId, settingKey: "tbanMessage.template", validation: "template", submenu: "tban-message" });
+  })
+  .row()
+  .back("🔙 Back", async (ctx) => {
+    const chatId = ctx.session.settingsChatId;
+    if (chatId) await editCaption(ctx, chatId, "moderation");
   });
 
 // 11. Lang Menu
@@ -518,11 +578,7 @@ settingsMenu
   .text("🖼️ Media", async (ctx) => {
     await ctx.answerCallbackQuery({ text: "🚧 Under Development", show_alert: true });
   })
-  .row()
-  .submenu("👼🏻 Resolution Group", "resolution-menu", async (ctx) => {
-    const chatId = ctx.session.settingsChatId;
-    if (chatId) await editCaption(ctx, chatId, "resolution");
-  })
+
   .row()
   .text("💂🏼 Sentry", async (ctx) => {
     await ctx.answerCallbackQuery({ text: "🚧 Under Development", show_alert: true });
@@ -559,7 +615,8 @@ settingsMenu.register(goodbyeMenu);
 settingsMenu.register(captchaMenu);
 settingsMenu.register(adminMenu);
 settingsMenu.register(usernameMenu);
-settingsMenu.register(resolutionMenu);
+settingsMenu.register(banMessageMenu);
+settingsMenu.register(tbanMessageMenu);
 settingsMenu.register(langMenu);
 
 // ── HELPER: SEND MENU PANEL ──────────────────────────────────────────────────

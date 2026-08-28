@@ -72,7 +72,6 @@ import {
 } from "./features/settings/settings-menu.js";
 import {
   settingsEditorConversation,
-  resolutionGroupConversation,
 } from "./features/settings/settings-conversations.js";
 
 export let i18nInstance: I18n<BotContext>;
@@ -169,7 +168,6 @@ export function createBot(): Bot<BotContext> {
   bot.use(conversations({ plugins: [i18nInstance] }));
   bot.use(createConversation(setLogChannelConversation, { id: "setLogChannel" }));
   bot.use(createConversation(settingsEditorConversation, { id: "settingsEditor" }));
-  bot.use(createConversation(resolutionGroupConversation, { id: "resolutionGroupEditor" }));
 
   // Register Settings Menu
   bot.use(settingsMenu);
@@ -272,6 +270,8 @@ export function createBot(): Bot<BotContext> {
           name: e.name,
           message: e.message,
           stack: e.stack,
+          cause: (e as any).cause ? String((e as any).cause) : undefined,
+          causeStack: (e as any).cause?.stack,
           chat_id: ctx.chat?.id,
         },
         "Unhandled error in bot handler",
