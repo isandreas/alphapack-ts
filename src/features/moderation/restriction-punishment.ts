@@ -96,10 +96,13 @@ export async function applyRestrictionPunishment(
   }
 
   // ── 3. Group notice ────────────────────────────────────────────────────────
+  // Uses ctx.t() so the message respects the group's configured locale.
+  // The i18n middleware has already resolved the correct locale from
+  // groupSettings.locale before this middleware chain runs.
   try {
     await ctx.api.sendMessage(
       chatId,
-      `🚫 Message Removed. Reason: ${reason}`,
+      ctx.t("reply_restriction_removed", { reason }),
     );
   } catch (err: unknown) {
     logger.warn(

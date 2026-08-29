@@ -93,3 +93,22 @@ rules_not_set = ⚠️ No rules have been set yet for this group.
 settings_dm_start_prompt = ⚠️ Please start a DM with the bot to open the settings panel.
 settings_checking_groups = ⏳ Finding groups where you and the bot are both admins...
 settings_select_group = Select the group you want to configure:
+
+# Alphabet & Media Filters — Group Notice (Phase 6)
+# Sent to the group chat when a message is removed by an auto-moderation filter.
+reply_restriction_removed = 🚫 Message Removed. Reason: { $reason }
+
+# Alphabet filter — reason strings (used in the group notice and the log card)
+reason_alphabet_cyrillic = message contained Cyrillic script (restricted)
+reason_alphabet_arabic = message contained Arabic script (restricted)
+reason_alphabet_cjk = message contained CJK script (restricted)
+reason_alphabet_thai = message contained Thai script (restricted)
+reason_alphabet_hebrew = message contained Hebrew script (restricted)
+reason_alphabet_devanagari = message contained Devanagari script (restricted)
+
+# Media filter — reason strings (used in the group notice and the log card)
+reason_media_photo = photo posting is restricted
+reason_media_video = video posting is restricted
+reason_media_sticker = sticker posting is restricted
+reason_media_gif = GIF/animation posting is restricted
+reason_media_link = link posting is restricted

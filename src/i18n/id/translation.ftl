@@ -93,3 +93,22 @@ rules_not_set = ⚠️ Peraturan belum diatur untuk grup ini.
 settings_dm_start_prompt = ⚠️ Silakan mulai DM dengan bot untuk membuka panel pengaturan.
 settings_checking_groups = ⏳ Mencari grup di mana Anda dan bot sama-sama menjadi admin...
 settings_select_group = Pilih grup yang ingin Anda konfigurasikan:
+
+# Filter Alfabet & Media — Pemberitahuan Grup (Fase 6)
+# Dikirim ke chat grup saat pesan dihapus oleh filter moderasi otomatis.
+reply_restriction_removed = 🚫 Pesan Dihapus. Alasan: { $reason }
+
+# Filter alfabet — string alasan (digunakan dalam pemberitahuan grup dan kartu log)
+reason_alphabet_cyrillic = pesan mengandung aksara Sirilik (dibatasi)
+reason_alphabet_arabic = pesan mengandung aksara Arab (dibatasi)
+reason_alphabet_cjk = pesan mengandung aksara CJK (dibatasi)
+reason_alphabet_thai = pesan mengandung aksara Thai (dibatasi)
+reason_alphabet_hebrew = pesan mengandung aksara Ibrani (dibatasi)
+reason_alphabet_devanagari = pesan mengandung aksara Devanagari (dibatasi)
+
+# Filter media — string alasan (digunakan dalam pemberitahuan grup dan kartu log)
+reason_media_photo = pengiriman foto dibatasi
+reason_media_video = pengiriman video dibatasi
+reason_media_sticker = pengiriman stiker dibatasi
+reason_media_gif = pengiriman GIF/animasi dibatasi
+reason_media_link = pengiriman tautan dibatasi

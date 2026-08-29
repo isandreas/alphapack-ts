@@ -84,16 +84,17 @@ export async function mediaFilterMiddleware(
   //    Multiple categories can technically match at once (e.g. a photo message
   //    that also has a URL in its caption). We detect all matches but punish
   //    only ONCE — the first match wins for the reason string.
+  //    Reason strings are resolved through i18n to respect the group's locale.
   let triggeredReason: string | null = null;
 
   if (filterConfig.photo && msg.photo) {
-    triggeredReason = "photo posting is restricted";
+    triggeredReason = ctx.t("reason_media_photo");
   } else if (filterConfig.video && msg.video) {
-    triggeredReason = "video posting is restricted";
+    triggeredReason = ctx.t("reason_media_video");
   } else if (filterConfig.sticker && msg.sticker) {
-    triggeredReason = "sticker posting is restricted";
+    triggeredReason = ctx.t("reason_media_sticker");
   } else if (filterConfig.gif && msg.animation) {
-    triggeredReason = "GIF/animation posting is restricted";
+    triggeredReason = ctx.t("reason_media_gif");
   }
 
   // Link detection: check both message body entities and caption entities
@@ -106,7 +107,7 @@ export async function mediaFilterMiddleware(
       (entity) => entity.type === "url" || entity.type === "text_link",
     );
     if (hasLink) {
-      triggeredReason = "link posting is restricted";
+      triggeredReason = ctx.t("reason_media_link");
     }
   }
 

@@ -66,14 +66,53 @@ All commands support both `/cmd` and `!cmd` syntax out-of-the-box (e.g. `/ping` 
 *   Allows toggling settings (Welcome, Goodbye, Captcha, Anti-Flood, Admin Relay, Username Notify, etc.) and updating templates (Rules, Guide, Welcome/Goodbye text) in real-time.
 *   Uses a robust Redis-backed handoff state for multi-step editing conversations to prevent grammY replay engine crashes.
 
+### 7. Auto-Moderation Filters
+Configured exclusively through `/settings` → **Alphabets** and **Media** submenus. No standalone commands — all 11 toggles are menu-only.
+
+#### 🔤 Alphabet / Script Filter
+Blocks and kicks users who post messages (or captions) containing characters from restricted Unicode scripts. Each script is an **independent toggle** — there is no global enable switch.
+
+| Script | Toggle key | Unicode range(s) |
+|---|---|---|
+| Cyrillic | `cyrillic` | U+0400–U+04FF |
+| Arabic | `arabic` | U+0600–U+06FF + U+0750–U+077F (Supplement) |
+| CJK (Han / Hiragana / Katakana / Hangul) | `cjk` | U+4E00–U+9FFF, U+3040–U+30FF, U+AC00–U+D7A3 |
+| Thai | `thai` | U+0E00–U+0E7F |
+| Hebrew | `hebrew` | U+0590–U+05FF |
+| Devanagari | `devanagari` | U+0900–U+097F |
+
+- **Any single character** from a restricted script triggers a delete + kick (no threshold).
+- Scans both `message.text` **and** `message.caption` (photos/videos with captions are also checked).
+- Admins and bots are fully exempt.
+- All toggles default to `🔴 OFF` (no restriction).
+
+#### 🖼️ Media-Type Filter
+Blocks and kicks users who post restricted media types. Each type is an **independent toggle**.
+
+| Media type | What it matches |
+|---|---|
+| Photo | `message.photo` |
+| Video | `message.video` |
+| Sticker | `message.sticker` (static, animated, and video stickers — one toggle) |
+| GIF | `message.animation` (Telegram represents GIFs as animations) |
+| Link | `url` or `text_link` entities in `message.entities` or `message.caption_entities` |
+
+- If a single message matches multiple restricted categories (e.g. a photo with a URL in its caption), the user is punished **exactly once**.
+- Admins and bots are fully exempt.
+- All toggles default to `🔴 OFF` (no restriction).
+
+#### Punishment (shared by both filters)
+1. **Delete** the offending message.
+2. **Kick** the sender (ban + immediate unban — the user can rejoin via invite link).
+3. Post a **group notice** in the group's configured language (`/settings` → Lang).
+4. Post a **log card** (`#alphabetkick` or `#mediakick`) to the audit log channel — no "Go to message" link since the source message is deleted.
+
 ---
 
 ## 🚧 Under Development Features
 
-The settings control panel contains placeholders for the following features that are currently scoped as under development. Clicking these buttons will trigger a popup notifying the admin:
+The settings control panel contains a placeholder for the following feature that is currently scoped as under development:
 
-*   **🔤 Alphabets**
-*   **🖼️ Media**
 *   **💂🏼 Sentry**
 
 ---
@@ -147,7 +186,10 @@ src/
 ├── types/                     # TypeScript types (context, group settings models)
 ├── utils/                     # Utility libraries (logger, placeholder formatting)
 └── features/                  # Business logic submodules
-    ├── moderation/            # Warn, Mute, Ban handlers
+    ├── moderation/            # Warn, Mute, Ban, alphabet/media filters
+    │   ├── alphabet-filter.ts         # Unicode script filter middleware
+    │   ├── media-filter.ts            # Media-type filter middleware
+    │   └── restriction-punishment.ts  # Shared delete+kick punishment
     ├── anti-spam/             # Rate limiters & flood guards
     ├── welcome/               # Member join/leave hooks & Captcha mechanics
     ├── mentions/              # Admin relays & User notifications

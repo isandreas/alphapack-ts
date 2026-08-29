@@ -118,8 +118,10 @@ export async function alphabetFilterMiddleware(
   for (const script of enabledScripts) {
     const regex = SCRIPT_REGEXES[script];
     if (regex.test(textToScan)) {
-      const scriptLabel = script.charAt(0).toUpperCase() + script.slice(1);
-      const reason = `message contained ${scriptLabel} script (restricted)`;
+      // Resolve the reason string through i18n so the group notice and log
+      // card respect the group's configured locale (id / en).
+      const reasonKey = `reason_alphabet_${script}` as const;
+      const reason = ctx.t(reasonKey);
 
       logger.info(
         { event: "alphabet_filter_triggered", chatId, userId, script },
