@@ -104,6 +104,37 @@ export async function getMenuCaption(_ctx: BotContext, chatId: number, page: str
     case "lang":
       return `⚙️ <b>Language Override</b>\n\nSelect the preferred locale for bot replies in this group.\n\nCurrent: <b>${localeLabel}</b>`;
 
+    case "alphabet-filter": {
+      const af = settings.alphabetFilter;
+      const state = (v: boolean) => (v ? "🟢 ON" : "🔴 OFF");
+      return (
+        `⚙️ <b>Alphabet / Script Filter</b>\n\n` +
+        `Block messages containing characters from specific Unicode scripts.\n` +
+        `<i>ON = block + kick sender; OFF (default) = no action.</i>\n\n` +
+        `• Cyrillic: <b>${state(af?.cyrillic ?? false)}</b>\n` +
+        `• Arabic: <b>${state(af?.arabic ?? false)}</b>\n` +
+        `• CJK (Han/Kana/Hangul): <b>${state(af?.cjk ?? false)}</b>\n` +
+        `• Thai: <b>${state(af?.thai ?? false)}</b>\n` +
+        `• Hebrew: <b>${state(af?.hebrew ?? false)}</b>\n` +
+        `• Devanagari: <b>${state(af?.devanagari ?? false)}</b>`
+      );
+    }
+
+    case "media-filter": {
+      const mf = settings.mediaFilter;
+      const state = (v: boolean) => (v ? "🟢 ON" : "🔴 OFF");
+      return (
+        `⚙️ <b>Media-Type Filter</b>\n\n` +
+        `Block messages by media type. Each toggle is independent.\n` +
+        `<i>ON = block + kick sender; OFF (default) = no action.</i>\n\n` +
+        `• Photo: <b>${state(mf?.photo ?? false)}</b>\n` +
+        `• Video: <b>${state(mf?.video ?? false)}</b>\n` +
+        `• Sticker: <b>${state(mf?.sticker ?? false)}</b>\n` +
+        `• GIF: <b>${state(mf?.gif ?? false)}</b>\n` +
+        `• Link: <b>${state(mf?.link ?? false)}</b>`
+      );
+    }
+
     default:
       return "⚙️ Configuration Panel";
   }
@@ -516,6 +547,189 @@ const langMenu = new Menu<BotContext>("lang-menu")
     if (chatId) await editCaption(ctx, chatId, "main");
   });
 
+// 12. Alphabet Filter Menu (Phase 6)
+// Six independent script toggles — no master switch.
+// Each row shows the current state and flips its boolean on tap.
+const alphabetFilterMenu = new Menu<BotContext>("alphabet-filter-menu")
+  .text(
+    (ctx) => {
+      const v = ctx.groupSettings?.alphabetFilter?.cyrillic ?? false;
+      return v ? "🟢 Cyrillic: ON" : "🔴 Cyrillic: OFF";
+    },
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.alphabetFilter?.cyrillic ?? false;
+      await updateSettingAndReload(ctx, chatId, "alphabetFilter.cyrillic", !current);
+      await editCaption(ctx, chatId, "alphabet-filter");
+      ctx.menu.update();
+    },
+  )
+  .row()
+  .text(
+    (ctx) => {
+      const v = ctx.groupSettings?.alphabetFilter?.arabic ?? false;
+      return v ? "🟢 Arabic: ON" : "🔴 Arabic: OFF";
+    },
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.alphabetFilter?.arabic ?? false;
+      await updateSettingAndReload(ctx, chatId, "alphabetFilter.arabic", !current);
+      await editCaption(ctx, chatId, "alphabet-filter");
+      ctx.menu.update();
+    },
+  )
+  .row()
+  .text(
+    (ctx) => {
+      const v = ctx.groupSettings?.alphabetFilter?.cjk ?? false;
+      return v ? "🟢 CJK: ON" : "🔴 CJK: OFF";
+    },
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.alphabetFilter?.cjk ?? false;
+      await updateSettingAndReload(ctx, chatId, "alphabetFilter.cjk", !current);
+      await editCaption(ctx, chatId, "alphabet-filter");
+      ctx.menu.update();
+    },
+  )
+  .row()
+  .text(
+    (ctx) => {
+      const v = ctx.groupSettings?.alphabetFilter?.thai ?? false;
+      return v ? "🟢 Thai: ON" : "🔴 Thai: OFF";
+    },
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.alphabetFilter?.thai ?? false;
+      await updateSettingAndReload(ctx, chatId, "alphabetFilter.thai", !current);
+      await editCaption(ctx, chatId, "alphabet-filter");
+      ctx.menu.update();
+    },
+  )
+  .row()
+  .text(
+    (ctx) => {
+      const v = ctx.groupSettings?.alphabetFilter?.hebrew ?? false;
+      return v ? "🟢 Hebrew: ON" : "🔴 Hebrew: OFF";
+    },
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.alphabetFilter?.hebrew ?? false;
+      await updateSettingAndReload(ctx, chatId, "alphabetFilter.hebrew", !current);
+      await editCaption(ctx, chatId, "alphabet-filter");
+      ctx.menu.update();
+    },
+  )
+  .row()
+  .text(
+    (ctx) => {
+      const v = ctx.groupSettings?.alphabetFilter?.devanagari ?? false;
+      return v ? "🟢 Devanagari: ON" : "🔴 Devanagari: OFF";
+    },
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.alphabetFilter?.devanagari ?? false;
+      await updateSettingAndReload(ctx, chatId, "alphabetFilter.devanagari", !current);
+      await editCaption(ctx, chatId, "alphabet-filter");
+      ctx.menu.update();
+    },
+  )
+  .row()
+  .back("🔙 Back", async (ctx) => {
+    const chatId = ctx.session.settingsChatId;
+    if (chatId) await editCaption(ctx, chatId, "main");
+  });
+
+// 13. Media Filter Menu (Phase 6)
+// Five independent media-type toggles — no master switch.
+const mediaFilterMenu = new Menu<BotContext>("media-filter-menu")
+  .text(
+    (ctx) => {
+      const v = ctx.groupSettings?.mediaFilter?.photo ?? false;
+      return v ? "🟢 Photo: ON" : "🔴 Photo: OFF";
+    },
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.mediaFilter?.photo ?? false;
+      await updateSettingAndReload(ctx, chatId, "mediaFilter.photo", !current);
+      await editCaption(ctx, chatId, "media-filter");
+      ctx.menu.update();
+    },
+  )
+  .row()
+  .text(
+    (ctx) => {
+      const v = ctx.groupSettings?.mediaFilter?.video ?? false;
+      return v ? "🟢 Video: ON" : "🔴 Video: OFF";
+    },
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.mediaFilter?.video ?? false;
+      await updateSettingAndReload(ctx, chatId, "mediaFilter.video", !current);
+      await editCaption(ctx, chatId, "media-filter");
+      ctx.menu.update();
+    },
+  )
+  .row()
+  .text(
+    (ctx) => {
+      const v = ctx.groupSettings?.mediaFilter?.sticker ?? false;
+      return v ? "🟢 Sticker: ON" : "🔴 Sticker: OFF";
+    },
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.mediaFilter?.sticker ?? false;
+      await updateSettingAndReload(ctx, chatId, "mediaFilter.sticker", !current);
+      await editCaption(ctx, chatId, "media-filter");
+      ctx.menu.update();
+    },
+  )
+  .row()
+  .text(
+    (ctx) => {
+      const v = ctx.groupSettings?.mediaFilter?.gif ?? false;
+      return v ? "🟢 GIF: ON" : "🔴 GIF: OFF";
+    },
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.mediaFilter?.gif ?? false;
+      await updateSettingAndReload(ctx, chatId, "mediaFilter.gif", !current);
+      await editCaption(ctx, chatId, "media-filter");
+      ctx.menu.update();
+    },
+  )
+  .row()
+  .text(
+    (ctx) => {
+      const v = ctx.groupSettings?.mediaFilter?.link ?? false;
+      return v ? "🟢 Link: ON" : "🔴 Link: OFF";
+    },
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.mediaFilter?.link ?? false;
+      await updateSettingAndReload(ctx, chatId, "mediaFilter.link", !current);
+      await editCaption(ctx, chatId, "media-filter");
+      ctx.menu.update();
+    },
+  )
+  .row()
+  .back("🔙 Back", async (ctx) => {
+    const chatId = ctx.session.settingsChatId;
+    if (chatId) await editCaption(ctx, chatId, "main");
+  });
+
+
 // ── MAIN MENU DEFINITION ─────────────────────────────────────────────────────
 
 export const settingsMenu = new Menu<BotContext>("settings-menu");
@@ -572,11 +786,13 @@ settingsMenu
     if (chatId) await editCaption(ctx, chatId, "username-notify");
   })
   .row()
-  .text("🔤 Alphabets", async (ctx) => {
-    await ctx.answerCallbackQuery({ text: "🚧 Under Development", show_alert: true });
+  .submenu("🔤 Alphabets", "alphabet-filter-menu", async (ctx) => {
+    const chatId = ctx.session.settingsChatId;
+    if (chatId) await editCaption(ctx, chatId, "alphabet-filter");
   })
-  .text("🖼️ Media", async (ctx) => {
-    await ctx.answerCallbackQuery({ text: "🚧 Under Development", show_alert: true });
+  .submenu("🖼️ Media", "media-filter-menu", async (ctx) => {
+    const chatId = ctx.session.settingsChatId;
+    if (chatId) await editCaption(ctx, chatId, "media-filter");
   })
 
   .row()
@@ -618,6 +834,8 @@ settingsMenu.register(usernameMenu);
 settingsMenu.register(banMessageMenu);
 settingsMenu.register(tbanMessageMenu);
 settingsMenu.register(langMenu);
+settingsMenu.register(alphabetFilterMenu);
+settingsMenu.register(mediaFilterMenu);
 
 // ── HELPER: SEND MENU PANEL ──────────────────────────────────────────────────
 

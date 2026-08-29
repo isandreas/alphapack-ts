@@ -90,4 +90,36 @@ export interface GroupSettings {
     ban: { enabled: boolean };
     mute: { enabled: boolean };
   };
+
+  /**
+   * Alphabet / script filter (Phase 6).
+   * Each boolean: true = "restricted" (messages containing that script trigger
+   * a delete+kick). false (default) = the script is allowed, no action taken.
+   * There is no master switch — every toggle is independent.
+   */
+  alphabetFilter: {
+    cyrillic: boolean;
+    arabic: boolean;
+    /** Bundles Chinese Han, Hiragana/Katakana, and Hangul as one toggle. */
+    cjk: boolean;
+    thai: boolean;
+    hebrew: boolean;
+    devanagari: boolean;
+  };
+
+  /**
+   * Media-type filter (Phase 6).
+   * Each boolean: true = "restricted" (messages of that type trigger a
+   * delete+kick). false (default) = the media type is allowed, no action taken.
+   * "gif" maps to Telegram's message.animation (there is no separate gif type).
+   * There is no master switch — every toggle is independent.
+   */
+  mediaFilter: {
+    photo: boolean;
+    video: boolean;
+    sticker: boolean;
+    /** Corresponds to message.animation in the Telegram Bot API. */
+    gif: boolean;
+    link: boolean;
+  };
 }

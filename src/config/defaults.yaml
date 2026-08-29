@@ -80,3 +80,27 @@ mentions:
   userNotify:
     enabled: false     # Gated default OFF per cutover rollout spec
     cooldownSeconds: 30
+
+# --- Alphabet Filter (Phase 6) ---
+# Each key is a script. true = "restricted" (messages with that script are kicked).
+# false (default) = allowed. No master switch — each toggle is independent.
+# NOTE: Editing this block only changes the compile-time defaults;
+#       live overrides are stored per-group in Redis via setGroupSetting().
+alphabetFilter:
+  cyrillic: false
+  arabic: false
+  cjk: false           # Bundles Chinese Han, Hiragana/Katakana, and Hangul as one toggle
+  thai: false
+  hebrew: false
+  devanagari: false
+
+# --- Media Filter (Phase 6) ---
+# Each key is a media type. true = "restricted" (messages of that type are kicked).
+# false (default) = allowed. No master switch — each toggle is independent.
+# "gif" maps to Telegram's "animation" type (there is no separate gif type in the API).
+mediaFilter:
+  photo: false
+  video: false
+  sticker: false
+  gif: false           # Telegram represents GIFs as message.animation
+  link: false

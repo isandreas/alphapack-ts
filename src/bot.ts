@@ -33,6 +33,8 @@ import { groupSettingsMiddleware } from "./middlewares/group-settings.js";
 import { auditLoggerMiddleware, registerBotApi } from "./middlewares/logger.js";
 import { limit } from "@grammyjs/ratelimiter";
 import { floodGuardMiddleware } from "./features/anti-spam/flood-guard.js";
+import { alphabetFilterMiddleware } from "./features/moderation/alphabet-filter.js";
+import { mediaFilterMiddleware } from "./features/moderation/media-filter.js";
 import { usernameTrackerMiddleware } from "./middlewares/username-tracker.js";
 import { requireAdmin } from "./middlewares/admin-guard.js";
 import { groupRegistryMiddleware, myChatMemberHandler } from "./features/settings/group-registry.js";
@@ -154,6 +156,16 @@ export function createBot(): Bot<BotContext> {
 
   // Per-group flood protection middleware
   bot.use(floodGuardMiddleware);
+
+  // ── 5a. Alphabet filter (Phase 6) ─────────────────────────────────────────
+  // Deletes + kicks users who post messages containing characters from any
+  // Unicode script that the group admin has restricted via /settings → Alphabets.
+  bot.use(alphabetFilterMiddleware);
+
+  // ── 5b. Media-type filter (Phase 6) ───────────────────────────────────────
+  // Deletes + kicks users who post restricted media types (photo, video,
+  // sticker, GIF/animation, or links) as configured via /settings → Media.
+  bot.use(mediaFilterMiddleware);
 
   // ── 6. Username Tracker (Phase 1) ─────────────────────────────────────────
   bot.use(usernameTrackerMiddleware);

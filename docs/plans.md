@@ -60,15 +60,7 @@ Feature Roadmap
 - Non-admins attempting `/settings` get a polite denial
 ### Phase 6 — Extended Moderation Settings (stretch)
 - Abjad (alphabet/script filter — e.g. restrict non-Latin spam scripts)
-- Blok (custom blacklist word/phrase list, per group)
-- Porno (media content filter — start with filename/caption heuristics; flag for
-  manual review rather than automated image classification unless a moderation API
-  is explicitly approved later)
 - Media restrictions (restrict photo/video/sticker/GIF posting to admins-only mode)
-- Mode Persetujuan (approval mode — new members must be approved before posting)
-- Menghapus Pesan (auto-delete service messages: joins/leaves/pinned notices)
-- Tag (broadcast/mention-all-members utility for admins)
-- Tautan (link-specific toggle, distinct from general anti-flood)
 ### Phase 7 — Hardening & Ops
 - Unit tests for command parser, permission checks, time-parser, threshold logic
 - Integration tests using grammY's test transformer / mocked Bot API
