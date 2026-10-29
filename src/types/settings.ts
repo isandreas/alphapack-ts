@@ -91,6 +91,13 @@ export interface GroupSettings {
     mute: { enabled: boolean };
   };
 
+  /** Group utility commands gating (!user, !star, !adminlist). */
+  commands: {
+    user: { enabled: boolean };
+    star: { enabled: boolean };
+    adminlist: { enabled: boolean };
+  };
+
   /**
    * Alphabet / script filter (Phase 6).
    * Each boolean: true = "restricted" (messages containing that script trigger

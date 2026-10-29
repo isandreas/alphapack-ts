@@ -1,6 +1,6 @@
 import type { BotContext } from "../../types/context.js";
 import { getRedisClient } from "../../db/redis.js";
-import { warnKey } from "../../db/keys.js";
+import { warnsKey } from "../../db/keys.js";
 import { resolveTarget, formatUserMention } from "../../utils/target-resolver.js";
 import { notifyTargetAndLog } from "../../utils/notify.js";
 import { isGroupAdmin } from "../../middlewares/admin-guard.js";
@@ -58,8 +58,8 @@ export async function warnHandler(ctx: BotContext): Promise<void> {
 
   // 5. Perform action (increment warn count)
   const redis = getRedisClient();
-  const key = warnKey(chatId, target.userId);
-  const currentCount = await redis.incr(key); // Persistent counter
+  const key = warnsKey(chatId);
+  const currentCount = await redis.hincrby(key, String(target.userId), 1); // Persistent counter in hash
 
   const threshold = ctx.groupSettings?.warnThreshold ?? 5;
   const isBanEnabled = isModerationFeatureEnabled(ctx, "ban");
@@ -144,11 +144,11 @@ export async function removeWarnHandler(ctx: BotContext): Promise<void> {
   }
 
   const redis = getRedisClient();
-  const key = warnKey(chatId, targetId);
-  let count = await redis.decr(key);
-  if (count < 0) {
+  const key = warnsKey(chatId);
+  let count = await redis.hincrby(key, String(targetId), -1);
+  if (count <= 0) {
     count = 0;
-    await redis.set(key, 0);
+    await redis.hdel(key, String(targetId));
   }
 
   const threshold = ctx.groupSettings?.warnThreshold ?? 5;

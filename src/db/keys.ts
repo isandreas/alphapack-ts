@@ -52,16 +52,28 @@ export function adminCacheKey(chatId: number): string {
   return `${NS}:${chatId}:admin_cache`;
 }
 
-// ── Moderation (Phase 2) ───────────────────────────────────────────────────────
+// ── Moderation & Community (Phase 2+) ─────────────────────────────────────────
 
 /**
- * Warn count for a user in a group.
- * Type: Redis string (INCR / GET / DEL).
+ * Warn counts for users in a group.
+ * Type: Redis hash (field = userId string, value = warn count string).
+ * Operations: HINCRBY / HGET / HDEL / HSET.
  *
- * @example warnKey(-1001234567890, 987654321) → "alphapack:-1001234567890:warn:987654321"
+ * @example warnsKey(-1001234567890) → "alphapack:-1001234567890:warns"
  */
-export function warnKey(chatId: number, userId: number): string {
-  return `${NS}:${chatId}:warn:${userId}`;
+export function warnsKey(chatId: number): string {
+  return `${NS}:${chatId}:warns`;
+}
+
+/**
+ * Star counts for users in a group.
+ * Type: Redis hash (field = userId string, value = star count string).
+ * Operations: HINCRBY / HGET / HSET.
+ *
+ * @example starsKey(-1001234567890) → "alphapack:-1001234567890:stars"
+ */
+export function starsKey(chatId: number): string {
+  return `${NS}:${chatId}:stars`;
 }
 
 /**

@@ -66,7 +66,7 @@ All commands support both `/cmd` and `!cmd` syntax out-of-the-box (e.g. `/ping` 
 
 ### 6. Interactive Settings Control Panel (`/settings`)
 *   Accessible only via Private Messages (DM) with the bot. Triggering it in a group sends a secure deep-link button to DM.
-*   Allows toggling settings (Welcome, Goodbye, Captcha, Anti-Flood, Admin Relay, Username Notify, etc.) and updating templates (Rules, Guide, Welcome/Goodbye text) in real-time.
+*   Allows toggling settings (Moderation, Commands, Welcome, Goodbye, Captcha, Anti-Flood, Admin Relay, Username Notify, etc.) and updating templates (Rules, Guide, Welcome/Goodbye text) in real-time.
 *   Uses a robust Redis-backed handoff state for multi-step editing conversations to prevent grammY replay engine crashes.
 
 ### 7. Auto-Moderation Filters
@@ -115,13 +115,15 @@ Blocks and kicks users who post restricted media types. Each type is an **indepe
 *   **Ops Channel Alerting (`OPS_CHANNEL_ID`):** Posts concise crash/error summaries (first 4 stack lines, deduplicated per error for 5 minutes) and high-memory warnings (RSS > 80% of 256 MB cap, 1-hour cooldown) while logging full details to pino/PM2.
 *   **Flat-File JSONL Audit Logs:** Every moderation action card and `/settings` menu change (`#SETTINGSCHANGE`) is appended in real time to `logs/audit/{YYYY-MM-DD}.jsonl` on disk (consuming zero Redis RAM) and automatically pruned after `AUDIT_LOG_RETENTION_DAYS` (default 30 days).
 
----
-
-## 🚧 Under Development Features
-
-The settings control panel contains a placeholder for the following feature that is currently scoped as under development:
-
-*   **💂🏼 Sentry**
+### 9. Group Utility Commands & Legacy Transition (`!star`, `!user`, `!adminlist`)
+*   **`!`-Only Prefix Guard:** `!star`, `!user`, and `!adminlist` respond strictly to the `!` prefix (ignoring `/star`, `/user`, `/adminlist`) and are gated under `/settings` → **⌨️ Commands**. When disabled in `/settings`, they silently do not reply in the group.
+*   **Stars (`!star`):** Admins can award or deduct stars (`!star +[n]` or `!star -[n]`) via reply or explicit `@username`/`user_id` (floored at `0`, stored in `alphapack:<chatId>:stars` hash).
+*   **User Info (`!user`):** Any member can view user details (Display Name, User ID, Username, Warns `X/threshold`, and Stars) for themselves, a replied message, or an explicit `@username`/`user_id`.
+*   **Admin List (`!adminlist`):** Any member can list human group administrators with the **Creator** displayed first followed by **Admins** using plain display names (no ping).
+*   **Legacy Redis Dump Import (`npm run import-dump`):** CLI script (`src/scripts/import-dump.ts`) to migrate legacy bot Redis dumps (`chat:<chat_id>:warns` → `alphapack:<chatId>:warns`, `chat:<chat_id>:winevent` → `alphapack:<chatId>:stars`, and `cache:chat:<chat_id>:admins` → `alphapack:<chatId>:admin_cache`):
+    ```bash
+    npm run import-dump -- scripts/legacy-dump.example.json
+    ```
 
 ---
 
@@ -137,6 +139,7 @@ The settings control panel contains a placeholder for the following feature that
 *   `!ban` / `/ban` [reply or user] [reason] — Permanently ban a user (group only)
 *   `!unban` / `/unban` [reply or user] — Unban a user and reset warning count (group only)
 *   `!unmute` / `/unmute` [reply or user] — Unmute a user (group only)
+*   `!star` [reply or user] `+[n]`|`-[n]` — Add or subtract stars for a user (group only, `!` prefix only)
 *   `!settings` / `/settings` — Open interactive settings control panel (group redirects to DM; 4s cooldown)
 *   `!setlogchannel` / `/setlogchannel` — Configure the group's moderation audit log channel (DM only)
 
@@ -144,6 +147,8 @@ The settings control panel contains a placeholder for the following feature that
 *   `!ping` / `/ping` — Smoke-test bot liveness
 *   `!rules` / `/rules` — Display the group's rules text (group only, 60s chat-wide cooldown)
 *   `!guide` / `/guide` — Display the group's guide text (group only, 60s chat-wide cooldown)
+*   `!user` [reply or user] — Display user info: Name, User ID, Username, Warns, and Stars (group only, `!` prefix only)
+*   `!adminlist` — Display group Creator and Admins without pinging (group only, `!` prefix only)
 
 ---
 
@@ -289,7 +294,10 @@ src/
 │   └── username-tracker.ts    # Maps Usernames to IDs on messages to resolve targets
 ├── types/                     # TypeScript types (context, group settings models)
 ├── utils/                     # Utility libraries (logger, ops-alert, audit-log, time-parser)
+├── scripts/
+│   └── import-dump.ts         # CLI & helper to import legacy Redis JSON dump
 └── features/                  # Business logic submodules
+    ├── community/             # !star, !user, and !adminlist group commands
     ├── moderation/            # Warn, Mute, Ban, alphabet/media filters
     ├── anti-spam/             # Rate limiters & flood guards
     ├── welcome/               # Member join/leave hooks & Captcha mechanics

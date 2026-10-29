@@ -52,4 +52,10 @@ export type BotContext = BaseContext &
      * Undefined in private chat (DM) contexts.
      */
     groupSettings?: GroupSettings;
+
+    /**
+     * True when the command was originally invoked with a "!" prefix (e.g. "!star")
+     * before commandParserMiddleware normalized it to "/".
+     */
+    isBangCommand?: boolean;
   };

@@ -68,3 +68,15 @@ export function isModerationFeatureEnabled(
   if (!settings) return false;
   return settings.moderation?.[feature]?.enabled ?? false;
 }
+
+/**
+ * Checks whether a specific group command (!user, !star, !adminlist) is enabled in the group settings.
+ */
+export function isCommandFeatureEnabled(
+  ctx: BotContext,
+  command: "user" | "star" | "adminlist",
+): boolean {
+  const settings = ctx.groupSettings;
+  if (!settings) return false;
+  return settings.commands?.[command]?.enabled ?? false;
+}

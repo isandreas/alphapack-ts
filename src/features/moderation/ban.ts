@@ -240,13 +240,13 @@ export async function unbanHandler(ctx: BotContext): Promise<void> {
   await redis.del(tbanKey(chatId, target.userId));
 
   // Warn counter check and reset if threshold reached
-  const { warnKey } = await import("../../db/keys.js");
-  const warnKeyVal = warnKey(chatId, target.userId);
-  const currentWarns = parseInt((await redis.get(warnKeyVal)) || "0", 10);
+  const { warnsKey } = await import("../../db/keys.js");
+  const warnHashKey = warnsKey(chatId);
+  const currentWarns = parseInt((await redis.hget(warnHashKey, String(target.userId))) || "0", 10);
   const threshold = ctx.groupSettings?.warnThreshold ?? 5;
   const isReset = currentWarns >= threshold;
   if (isReset) {
-    await redis.del(warnKeyVal);
+    await redis.hdel(warnHashKey, String(target.userId));
   }
 
   let inviteLink: string | undefined;

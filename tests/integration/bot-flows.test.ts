@@ -11,7 +11,7 @@ import {
   adminCacheKey,
   knownGroupsKey,
   schedulerZsetKey,
-  warnKey,
+  warnsKey,
 } from "../../src/db/keys.js";
 import { getRedisClient } from "../../src/db/redis.js";
 
@@ -211,12 +211,12 @@ describe("Bot integration flows with grammY API transformer (Part G)", () => {
 
     // Warn 1 (1/3)
     await bot.handleUpdate(makeWarnUpdate("first strike"));
-    expect(await redis.get(warnKey(CHAT_ID, OFFENDER_ID))).toBe("1");
+    expect(await redis.hget(warnsKey(CHAT_ID), String(OFFENDER_ID))).toBe("1");
     expect(apiCalls.some((c) => c.method === "banChatMember")).toBe(false);
 
     // Warn 2 (2/3)
     await bot.handleUpdate(makeWarnUpdate("second strike"));
-    expect(await redis.get(warnKey(CHAT_ID, OFFENDER_ID))).toBe("2");
+    expect(await redis.hget(warnsKey(CHAT_ID), String(OFFENDER_ID))).toBe("2");
     expect(apiCalls.some((c) => c.method === "banChatMember")).toBe(false);
 
     // Warn 3 (3/3 -> auto-ban escalation!)
@@ -230,7 +230,7 @@ describe("Bot integration flows with grammY API transformer (Part G)", () => {
     });
 
     // Warn counter reached threshold (3)
-    expect(await redis.get(warnKey(CHAT_ID, OFFENDER_ID))).toBe("3");
+    expect(await redis.hget(warnsKey(CHAT_ID), String(OFFENDER_ID))).toBe("3");
 
     // Log channel received 2 #warn cards and 1 #ban card
     const logChannelMsgs = apiCalls.filter(

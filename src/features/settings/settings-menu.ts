@@ -151,6 +151,17 @@ export async function getMenuCaption(_ctx: BotContext, chatId: number, page: str
       );
     }
 
+    case "commands": {
+      const cmds = settings.commands;
+      return (
+        `⚙️ <b>Commands Gating</b>\n\n` +
+        `Toggle which group commands are enabled in this group.\n\n` +
+        `• !user: <b>${cmds?.user?.enabled ? "Enabled" : "Disabled"}</b>\n` +
+        `• !star: <b>${cmds?.star?.enabled ? "Enabled" : "Disabled"}</b>\n` +
+        `• !adminlist: <b>${cmds?.adminlist?.enabled ? "Enabled" : "Disabled"}</b>`
+      );
+    }
+
     default:
       return "⚙️ Configuration Panel";
   }
@@ -762,6 +773,49 @@ const mediaFilterMenu = new Menu<BotContext>("media-filter-menu")
     if (chatId) await editCaption(ctx, chatId, "main");
   });
 
+// 14. Commands Menu (!user, !star, !adminlist)
+const commandsMenu = new Menu<BotContext>("commands-menu")
+  .text(
+    (ctx) => `!user: ${ctx.groupSettings?.commands?.user?.enabled ? "🟢 ON" : "🔴 OFF"}`,
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.commands?.user?.enabled ?? false;
+      await updateSettingAndReload(ctx, chatId, "commands.user.enabled", !current);
+      await editCaption(ctx, chatId, "commands");
+      ctx.menu.update();
+    },
+  )
+  .row()
+  .text(
+    (ctx) => `!star: ${ctx.groupSettings?.commands?.star?.enabled ? "🟢 ON" : "🔴 OFF"}`,
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.commands?.star?.enabled ?? false;
+      await updateSettingAndReload(ctx, chatId, "commands.star.enabled", !current);
+      await editCaption(ctx, chatId, "commands");
+      ctx.menu.update();
+    },
+  )
+  .row()
+  .text(
+    (ctx) => `!adminlist: ${ctx.groupSettings?.commands?.adminlist?.enabled ? "🟢 ON" : "🔴 OFF"}`,
+    async (ctx) => {
+      const chatId = ctx.session.settingsChatId;
+      if (!chatId) return;
+      const current = ctx.groupSettings?.commands?.adminlist?.enabled ?? false;
+      await updateSettingAndReload(ctx, chatId, "commands.adminlist.enabled", !current);
+      await editCaption(ctx, chatId, "commands");
+      ctx.menu.update();
+    },
+  )
+  .row()
+  .back("🔙 Back", async (ctx) => {
+    const chatId = ctx.session.settingsChatId;
+    if (chatId) await editCaption(ctx, chatId, "main");
+  });
+
 
 // ── MAIN MENU DEFINITION ─────────────────────────────────────────────────────
 
@@ -774,8 +828,7 @@ export const settingsMenu = new Menu<BotContext>("settings-menu");
 // [ 🗣️ Anti-Flood ][ 🛡️ Captcha ]
 // [ 🚨 @admin ][ 🛎️ @username ]
 // [ 🔤 Alphabets ][ 🖼️ Media ]
-// [ 👼🏻 Resolution Group ]
-// [ 💂🏼 Sentry ][ 🇮🇩 Lang ]
+// [ ⌨️ Commands ][ 🇮🇩 Lang ]
 // [ ✅ Close ]
 settingsMenu
   .submenu("🛟 Moderation", "moderation-menu", async (ctx) => {
@@ -829,8 +882,9 @@ settingsMenu
   })
 
   .row()
-  .text("💂🏼 Sentry", async (ctx) => {
-    await ctx.answerCallbackQuery({ text: "🚧 Under Development", show_alert: true });
+  .submenu("⌨️ Commands", "commands-menu", async (ctx) => {
+    const chatId = ctx.session.settingsChatId;
+    if (chatId) await editCaption(ctx, chatId, "commands");
   })
   .submenu("🇮🇩 Lang", "lang-menu", async (ctx) => {
     const chatId = ctx.session.settingsChatId;
@@ -869,6 +923,7 @@ settingsMenu.register(tbanMessageMenu);
 settingsMenu.register(langMenu);
 settingsMenu.register(alphabetFilterMenu);
 settingsMenu.register(mediaFilterMenu);
+settingsMenu.register(commandsMenu);
 
 // ── HELPER: SEND MENU PANEL ──────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { warnHandler } from "../../src/features/moderation/warn.js";
-import { warnKey } from "../../src/db/keys.js";
+import { warnsKey } from "../../src/db/keys.js";
 import { getRedisClient } from "../../src/db/redis.js";
 import { InMemoryRedisStore } from "../helpers/mock-redis.js";
 import type { BotContext } from "../../src/types/context.js";
@@ -72,14 +72,14 @@ describe("Warn threshold boundary logic (Part F)", () => {
     const redis = getRedisClient();
 
     // Pre-seed count to 1 so next warn is count == 2 (threshold - 1)
-    await redis.set(warnKey(CHAT_ID, TARGET_ID), "1");
+    await redis.hset(warnsKey(CHAT_ID), String(TARGET_ID), "1");
 
     const step1 = makeWarnCtx(threshold);
     await warnHandler(step1.ctx);
 
     // Boundary check: count == 2 (threshold - 1) -> warning only, NO ban
     expect(step1.banChatMember).not.toHaveBeenCalled();
-    expect(await redis.get(warnKey(CHAT_ID, TARGET_ID))).toBe("2");
+    expect(await redis.hget(warnsKey(CHAT_ID), String(TARGET_ID))).toBe("2");
     expect(step1.replies[0]).toContain("reply_warned:");
     expect(step1.replies[0]).toContain('"count":"2"');
 
@@ -91,14 +91,14 @@ describe("Warn threshold boundary logic (Part F)", () => {
     expect(step2.banChatMember).toHaveBeenCalledWith(CHAT_ID, TARGET_ID, {
       until_date: 0,
     });
-    expect(await redis.get(warnKey(CHAT_ID, TARGET_ID))).toBe("3");
+    expect(await redis.hget(warnsKey(CHAT_ID), String(TARGET_ID))).toBe("3");
     expect(step2.replies[0]).toContain("reply_banned:");
   });
 
   it("does NOT auto-ban at count == threshold if moderation.ban.enabled is false", async () => {
     const threshold = 3;
     const redis = getRedisClient();
-    await redis.set(warnKey(CHAT_ID, TARGET_ID), "2");
+    await redis.hset(warnsKey(CHAT_ID), String(TARGET_ID), "2");
 
     const { ctx, replies, banChatMember } = makeWarnCtx(threshold, false);
     await warnHandler(ctx);
