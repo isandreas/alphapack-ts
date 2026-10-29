@@ -1,12 +1,28 @@
 import { Menu } from "@grammyjs/menu";
 import type { BotContext } from "../../types/context.js";
-import { getGroupSettings, setGroupSetting } from "../../middlewares/group-settings.js";
+import {
+  getGroupSettings,
+  setGroupSettingViaMenu,
+  setModerationAllViaMenu,
+} from "../../middlewares/group-settings.js";
 import { getGroupAdmins, isGroupAdmin } from "../../middlewares/admin-guard.js";
 import { getKnownGroups } from "./group-registry.js";
 import { hasStartedBot } from "../mentions/user-registry.js";
 import { logger } from "../../utils/logger.js";
-import { knownGroupsKey, sessionKey, settingsEditKey } from "../../db/keys.js";
+import {
+  knownGroupsKey,
+  sessionKey,
+  settingsCooldownKey,
+  settingsEditCooldownKey,
+  settingsEditKey,
+} from "../../db/keys.js";
 import { getRedisClient } from "../../db/redis.js";
+
+/** Per-user cooldown (seconds) between /settings command invocations. */
+const SETTINGS_CMD_COOLDOWN_S = 4;
+
+/** Per-user cooldown (seconds) between "Edit" button taps in the settings menu. */
+const SETTINGS_EDIT_COOLDOWN_S = 3;
 
 /**
  * Returns active settings caption text depending on the submenu page.
@@ -164,7 +180,8 @@ async function editCaption(ctx: BotContext, chatId: number, page: string): Promi
 }
 
 /**
- * Updates a setting in Redis and reloads it into the current request context in-memory.
+ * Updates a setting in Redis via the menu audit wrapper (posting #SETTINGSCHANGE)
+ * and reloads it into the current request context in-memory.
  */
 async function updateSettingAndReload(
   ctx: BotContext,
@@ -172,7 +189,7 @@ async function updateSettingAndReload(
   key: string,
   value: string | number | boolean | null,
 ): Promise<void> {
-  await setGroupSetting(chatId, key, value);
+  await setGroupSettingViaMenu(chatId, key, value, ctx);
   ctx.groupSettings = await getGroupSettings(chatId);
 }
 
@@ -180,6 +197,9 @@ async function updateSettingAndReload(
 
 /**
  * Saves the pending editor state to Redis and enters the settingsEditor conversation.
+ *
+ * Enforces a light per-user cooldown (SETTINGS_EDIT_COOLDOWN_S) so rapid taps
+ * cannot spam-open text-input prompts.
  *
  * We write to Redis (not ctx.session) because grammY conversations v2 replays the
  * conversation function on every incoming message, and during replay ctx.session is
@@ -192,6 +212,23 @@ async function enterEditor(
   const userId = ctx.from?.id;
   if (!userId) return;
   const redis = getRedisClient();
+
+  // Light per-user cooldown on "Edit" button taps
+  const cdKey = settingsEditCooldownKey(userId);
+  const ttl = await redis.ttl(cdKey);
+  if (ttl > 0) {
+    try {
+      await ctx.answerCallbackQuery({
+        text: ctx.t("settings_edit_cooldown", { seconds: String(ttl) }),
+        show_alert: false,
+      });
+    } catch {
+      await ctx.reply(ctx.t("settings_edit_cooldown", { seconds: String(ttl) }));
+    }
+    return;
+  }
+  await redis.set(cdKey, "1", "EX", SETTINGS_EDIT_COOLDOWN_S);
+
   await redis.setex(settingsEditKey(userId), 300, JSON.stringify(state));
   try {
     await ctx.answerCallbackQuery();
@@ -230,20 +267,16 @@ const moderationMenu = new Menu<BotContext>("moderation-menu")
   .text("✅ Enable All", async (ctx) => {
     const chatId = ctx.session.settingsChatId;
     if (!chatId) return;
-    await updateSettingAndReload(ctx, chatId, "moderation.warn.enabled", true);
-    await updateSettingAndReload(ctx, chatId, "moderation.mute.enabled", true);
-    await updateSettingAndReload(ctx, chatId, "moderation.tban.enabled", true);
-    await updateSettingAndReload(ctx, chatId, "moderation.ban.enabled", true);
+    await setModerationAllViaMenu(chatId, true, ctx);
+    ctx.groupSettings = await getGroupSettings(chatId);
     await editCaption(ctx, chatId, "moderation");
     ctx.menu.update();
   })
   .text("🚫 Disable All", async (ctx) => {
     const chatId = ctx.session.settingsChatId;
     if (!chatId) return;
-    await updateSettingAndReload(ctx, chatId, "moderation.warn.enabled", false);
-    await updateSettingAndReload(ctx, chatId, "moderation.mute.enabled", false);
-    await updateSettingAndReload(ctx, chatId, "moderation.tban.enabled", false);
-    await updateSettingAndReload(ctx, chatId, "moderation.ban.enabled", false);
+    await setModerationAllViaMenu(chatId, false, ctx);
+    ctx.groupSettings = await getGroupSettings(chatId);
     await editCaption(ctx, chatId, "moderation");
     ctx.menu.update();
   })
@@ -859,6 +892,16 @@ export async function settingsCommandHandler(ctx: BotContext): Promise<void> {
   const chatType = ctx.chat?.type;
   const userId = ctx.from?.id;
   if (!userId) return;
+
+  // Per-user cooldown (4 s) to prevent rapid repeated invocations
+  const redis = getRedisClient();
+  const cdKey = settingsCooldownKey(userId);
+  const ttl = await redis.ttl(cdKey);
+  if (ttl > 0) {
+    await ctx.reply(ctx.t("settings_cooldown", { seconds: String(ttl) }));
+    return;
+  }
+  await redis.set(cdKey, "1", "EX", SETTINGS_CMD_COOLDOWN_S);
 
   if (chatType === "group" || chatType === "supergroup") {
     const chatId = ctx.chat!.id;

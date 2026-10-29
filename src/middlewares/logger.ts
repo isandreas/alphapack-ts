@@ -4,16 +4,19 @@
  * Request-level audit logger middleware.
  * Logs every processed update as a structured JSON entry (pino → PM2).
  *
- * Also provides postActionCard() — a standalone helper that posts
- * HTML-formatted action cards to a group's configured log channel.
- * It resolves logChannelId via getGroupSettings() internally,
- * so callers don't need a BotContext.
+ * Also provides postActionCard() — a standalone helper that:
+ *   1. Appends a JSONL record to logs/audit/{YYYY-MM-DD}.jsonl (always).
+ *   2. Posts the HTML-formatted card to the group's Telegram log channel
+ *      (only if one is configured via !setlogchannel).
+ *
+ * Both paths share this single call site. There is no parallel logging path.
  */
 
 import type { NextFunction, Api } from "grammy";
 import type { BotContext } from "../types/context.js";
 import { logger } from "../utils/logger.js";
 import { getGroupSettings } from "./group-settings.js";
+import { appendAuditLog } from "../utils/audit-log.js";
 
 // ── Bot API reference ─────────────────────────────────────────────────────────
 // Stored once during createBot() so postActionCard can work without ctx.
@@ -58,13 +61,16 @@ export async function auditLoggerMiddleware(
 // ── Action Card Poster ────────────────────────────────────────────────────────
 
 /**
- * Posts an HTML-formatted action card to the group's audit log channel.
+ * Posts an HTML-formatted action card to the group's audit log channel AND
+ * appends the same card as a JSONL record to the local disk audit log.
  *
- * Standalone: resolves logChannelId from getGroupSettings(chatId) internally.
- * If no log channel is configured, returns silently (no error).
- * Uses the stored bot API reference (registered via registerBotApi).
+ * The disk write (Step 1) is unconditional — it happens even when no Telegram
+ * log channel is configured. This is intentional: the flat file is an
+ * independent backup that does not depend on Telegram delivery.
  *
- * @param chatId Source group chat ID (used to look up logChannelId)
+ * The Telegram post (Step 2) only fires when logChannelId is configured.
+ *
+ * @param chatId Source group chat ID
  * @param card   HTML-formatted action card text
  */
 import type { InlineKeyboardMarkup } from "grammy/types";
@@ -74,10 +80,15 @@ export async function postActionCard(
   card: string,
   replyMarkup?: InlineKeyboardMarkup,
 ): Promise<void> {
+  // ── Step 1: Disk audit log (always) ─────────────────────────────────────
+  // Fire-and-forget — appendAuditLog handles its own error logging internally.
+  appendAuditLog(chatId, card);
+
+  // ── Step 2: Telegram log channel (only if configured) ───────────────────
   if (!_api) {
     logger.debug(
       { event: "log_channel_no_api", chatId },
-      "postActionCard called before bot API was registered — skipping",
+      "postActionCard called before bot API was registered — skipping Telegram post",
     );
     return;
   }
@@ -89,7 +100,7 @@ export async function postActionCard(
   } catch (err: unknown) {
     logger.warn(
       { event: "log_channel_settings_error", chatId, err },
-      "Failed to load group settings for log channel — skipping",
+      "Failed to load group settings for log channel — skipping Telegram post",
     );
     return;
   }

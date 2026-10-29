@@ -179,7 +179,25 @@ export function startedUsersKey(): string {
   return `${NS}:bot:started_users`;
 }
 
-// ── Settings Editor State (Phase 5) ───────────────────────────────────────────
+/**
+ * Per-user cooldown key for `@admin` relay triggers in a group.
+ *
+ * @example adminRelayCooldownKey(-1001234567890, 987654321) → "alphapack:-1001234567890:cooldown:admin_relay:987654321"
+ */
+export function adminRelayCooldownKey(chatId: number, senderId: number): string {
+  return `${NS}:${chatId}:cooldown:admin_relay:${senderId}`;
+}
+
+/**
+ * Per-target cooldown key for `@username` mention notifications in a group.
+ *
+ * @example mentionNotifyCooldownKey(-1001234567890, 987654321) → "alphapack:-1001234567890:cooldown:mention:987654321"
+ */
+export function mentionNotifyCooldownKey(chatId: number, targetId: number): string {
+  return `${NS}:${chatId}:cooldown:mention:${targetId}`;
+}
+
+// ── Settings Editor State & Cooldowns (Phase 5 & Phase 7b) ────────────────────
 
 /**
  * Short-lived Redis key (TTL 5 min) that carries the pending settings edit
@@ -194,6 +212,24 @@ export function settingsEditKey(userId: number): string {
   return `${NS}:settings_edit:${userId}`;
 }
 
+/**
+ * Per-user cooldown key for `/settings` command invocations (TTL = 4 s).
+ *
+ * @example settingsCooldownKey(987654321) → "alphapack:settings:cooldown:987654321"
+ */
+export function settingsCooldownKey(userId: number): string {
+  return `${NS}:settings:cooldown:${userId}`;
+}
+
+/**
+ * Per-user cooldown key for `/settings` menu "Edit" button taps (TTL = 3 s).
+ *
+ * @example settingsEditCooldownKey(987654321) → "alphapack:settings_edit:cooldown:987654321"
+ */
+export function settingsEditCooldownKey(userId: number): string {
+  return `${NS}:settings_edit:cooldown:${userId}`;
+}
+
 // ── Command Cooldowns ──────────────────────────────────────────────────────────
 
 /**
@@ -205,3 +241,23 @@ export function commandCooldownKey(chatId: number, command: "rules" | "guide"): 
   return `${NS}:${chatId}:cooldown:${command}`;
 }
 
+// ── Phase 7: Ops & Health ──────────────────────────────────────────────────────
+
+/**
+ * Per-owner cooldown for the /health command (TTL = 60 s).
+ *
+ * @example healthCooldownKey(987654321) → "alphapack:health:cooldown:987654321"
+ */
+export function healthCooldownKey(userId: number): string {
+  return `${NS}:health:cooldown:${userId}`;
+}
+
+/**
+ * Unix timestamp (seconds as string) written by the scheduler after every
+ * successful sweep. Read by /health to surface a silently-stalled scheduler.
+ *
+ * @example schedulerLastRunKey() → "alphapack:scheduler:last_run"
+ */
+export function schedulerLastRunKey(): string {
+  return `${NS}:scheduler:last_run`;
+}

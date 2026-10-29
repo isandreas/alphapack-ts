@@ -1,7 +1,7 @@
 import { Bot, GrammyError } from "grammy";
 import type { BotContext } from "../../types/context.js";
 import { getRedisClient } from "../../db/redis.js";
-import { schedulerZsetKey, muteKey, tbanKey, groupSettingsKey } from "../../db/keys.js";
+import { schedulerZsetKey, muteKey, tbanKey, groupSettingsKey, schedulerLastRunKey } from "../../db/keys.js";
 import { logger } from "../../utils/logger.js";
 import { formatUserMention } from "../../utils/target-resolver.js";
 import { i18nInstance } from "../../bot.js";
@@ -36,7 +36,13 @@ async function processScheduledActions(bot: Bot<BotContext>): Promise<void> {
 
   // Fetch all items with a score <= now
   const items = await redis.zrangebyscore(key, "-inf", now);
-  if (items.length === 0) return;
+
+  if (items.length === 0) {
+    // Record the sweep even when there is nothing to do — /health uses this
+    // to distinguish "scheduler ran with an empty queue" from "never ran".
+    await redis.set(schedulerLastRunKey(), String(now)).catch(() => {});
+    return;
+  }
 
   for (const itemStr of items) {
     try {
@@ -52,7 +58,11 @@ async function processScheduledActions(bot: Bot<BotContext>): Promise<void> {
       }
     }
   }
+
+  // Record successful sweep completion timestamp
+  await redis.set(schedulerLastRunKey(), String(now)).catch(() => {});
 }
+
 
 async function executeAction(bot: Bot<BotContext>, item: ScheduledAction): Promise<void> {
   logger.info({ event: "scheduler_execute", ...item }, `Executing scheduled ${item.action}`);

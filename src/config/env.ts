@@ -32,6 +32,25 @@ const EnvSchema = z.object({
   LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
     .default("info"),
+
+  // ── Phase 7: Ops & Monitoring ─────────────────────────────────────────────
+  //
+  // OPS_CHANNEL_ID — Telegram channel ID for bot-operator crash/memory alerts.
+  //   Intentionally different from the per-group !setlogchannel log channel:
+  //   that one is per-group moderation history configured by group admins;
+  //   this one is bot-operational health configured once by whoever runs the bot.
+  //   If unset, alerting is silently skipped — no error.
+  OPS_CHANNEL_ID: z.coerce.number().int().nullable().default(null),
+
+  // OWNER_ID — The single Telegram user ID allowed to run /health.
+  //   Deliberately not tied to group-admin status — group admins should not see
+  //   internal technical diagnostics (memory, Redis, scheduler internals).
+  //   If unset, /health refuses everyone unconditionally.
+  OWNER_ID: z.coerce.number().int().nullable().default(null),
+
+  // AUDIT_LOG_RETENTION_DAYS — How many days of JSONL audit logs to keep on disk.
+  //   Files older than this (based on filename date, not mtime) are pruned daily.
+  AUDIT_LOG_RETENTION_DAYS: z.coerce.number().int().min(1).default(30),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

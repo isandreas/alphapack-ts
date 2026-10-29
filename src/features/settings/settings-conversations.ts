@@ -1,6 +1,6 @@
 import type { Conversation } from "@grammyjs/conversations";
 import type { BotContext } from "../../types/context.js";
-import { setGroupSetting } from "../../middlewares/group-settings.js";
+import { setGroupSettingViaMenu } from "../../middlewares/group-settings.js";
 
 type SettingsConversation = Conversation<BotContext, BotContext>;
 
@@ -127,8 +127,11 @@ export async function settingsEditorConversation(
 
   if (cancelled || value === null) return;
 
-  // ✅ Safe: setGroupSetting talks to Redis — must run via external().
-  await conversation.external(() => setGroupSetting(chatId, settingKey, value!));
+  // ✅ Safe: setGroupSettingViaMenu talks to Redis and posts the #SETTINGSCHANGE
+  // audit card — must run via external() so it executes once, not on replay.
+  await conversation.external(() =>
+    setGroupSettingViaMenu(chatId, settingKey, value!, ctx),
+  );
 
   // We cannot send a grammY Menu from inside a conversation (no middleware chain).
   // Just confirm and tell the admin to reopen settings.
