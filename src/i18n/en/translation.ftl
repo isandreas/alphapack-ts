@@ -12,6 +12,8 @@ error_ban_failed = ❌ Failed to ban the user. Please check my permissions.
 error_unban_failed = ❌ Failed to unban the user.
 error_mute_failed = ❌ Failed to mute the user. Please check my permissions.
 error_unmute_failed = ❌ Failed to unmute the user.
+error_admin_only = ❌ This command is for administrators only.
+error_owner_only = ❌ You are not authorized to use this command.
 
 # Usage
 usage_warn = ⚠️ Usage: /warn <user_id> [reason] or reply to a message with /warn [reason]
@@ -112,3 +114,10 @@ reason_media_video = video posting is restricted
 reason_media_sticker = sticker posting is restricted
 reason_media_gif = GIF/animation posting is restricted
 reason_media_link = link posting is restricted
+
+# Phase 7 — Ops & Health
+# /health command strings
+health_dm_only = ❌ This command can only be used in a private message with the bot.
+health_cooldown = ⏳ Please wait { $seconds }s before using /health again.
+settings_cooldown = ⏳ Please wait { $seconds }s before opening /settings again.
+settings_edit_cooldown = ⏳ Please wait { $seconds }s before editing another setting.

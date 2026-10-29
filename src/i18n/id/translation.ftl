@@ -12,6 +12,8 @@ error_ban_failed = ❌ Gagal memblokir (ban) pengguna. Periksa izin saya.
 error_unban_failed = ❌ Gagal membuka blokir pengguna.
 error_mute_failed = ❌ Gagal membisukan (mute) pengguna. Periksa izin saya.
 error_unmute_failed = ❌ Gagal membuka bisu pengguna.
+error_admin_only = ❌ Perintah ini hanya untuk administrator.
+error_owner_only = ❌ Anda tidak memiliki izin untuk menggunakan perintah ini.
 
 # Usage
 usage_warn = ⚠️ Penggunaan: /warn <user_id> [alasan] atau balas pesan dengan /warn [alasan]
@@ -112,3 +114,11 @@ reason_media_video = pengiriman video dibatasi
 reason_media_sticker = pengiriman stiker dibatasi
 reason_media_gif = pengiriman GIF/animasi dibatasi
 reason_media_link = pengiriman tautan dibatasi
+
+# Fase 7 — Ops & Health
+# String perintah /health
+health_dm_only = ❌ Perintah ini hanya dapat digunakan dalam pesan pribadi dengan bot.
+health_cooldown = ⏳ Tunggu { $seconds }s lagi sebelum menggunakan /health lagi.
+settings_cooldown = ⏳ Tunggu { $seconds }s lagi sebelum membuka /settings lagi.
+settings_edit_cooldown = ⏳ Tunggu { $seconds }s lagi sebelum mengedit pengaturan lain.
+

@@ -32,9 +32,12 @@ cp .env.example .env
 | `BOT_TOKEN` | **Required.** The Telegram Bot token received from [@BotFather](https://t.me/BotFather) | *None* |
 | `REDIS_URL` | Redis server connection string. | `redis://127.0.0.1:6379` |
 | `DEFAULT_LOCALE` | Fallback language code (`id` or `en`). | `id` |
-| `NODE_ENV` | Application environment (`development` or `production`). | `production` |
-| `LOG_LEVEL` | Pino logger output verbosity (`debug`, `info`, `warn`, `error`). | `info` |
+| `NODE_ENV` | Application environment (`development`, `production`, or `test`). | `development` |
+| `LOG_LEVEL` | Pino logger output verbosity (`trace`, `debug`, `info`, `warn`, `error`, `fatal`). | `info` |
 | `BOT_CUSTOM_NAME` | The bot name used in welcome, goodbye, rules, and guide templates. If omitted, falls back to the bot's first name on Telegram. | `Alpha Pack` |
+| `OPS_CHANNEL_ID` | Optional global Telegram channel ID for bot-operator crash/error alerts and >80% memory warnings. If unset, alerting is skipped silently. | `null` |
+| `OWNER_ID` | Optional single numeric Telegram user ID allowed to run `/health` in DM. If unset, `/health` refuses everyone unconditionally. | `null` |
+| `AUDIT_LOG_RETENTION_DAYS` | Number of days to retain daily flat-file audit logs under `logs/audit/YYYY-MM-DD.jsonl`. | `30` |
 
 ---
 
@@ -107,6 +110,11 @@ Blocks and kicks users who post restricted media types. Each type is an **indepe
 3. Post a **group notice** in the group's configured language (`/settings` → Lang).
 4. Post a **log card** (`#alphabetkick` or `#mediakick`) to the audit log channel — no "Go to message" link since the source message is deleted.
 
+### 8. Operational Monitoring, Alerting & Local Audit Trail (Phase 7)
+*   **`/health` Command (Owner-Only DM):** Reports process uptime, RSS & V8 heap usage against the 256 MB cap, live Redis `PING`, Node.js version, environment, and last scheduler sweep time (60s per-user cooldown).
+*   **Ops Channel Alerting (`OPS_CHANNEL_ID`):** Posts concise crash/error summaries (first 4 stack lines, deduplicated per error for 5 minutes) and high-memory warnings (RSS > 80% of 256 MB cap, 1-hour cooldown) while logging full details to pino/PM2.
+*   **Flat-File JSONL Audit Logs:** Every moderation action card and `/settings` menu change (`#SETTINGSCHANGE`) is appended in real time to `logs/audit/{YYYY-MM-DD}.jsonl` on disk (consuming zero Redis RAM) and automatically pruned after `AUDIT_LOG_RETENTION_DAYS` (default 30 days).
+
 ---
 
 ## 🚧 Under Development Features
@@ -119,48 +127,143 @@ The settings control panel contains a placeholder for the following feature that
 
 ## 🛠️ Commands List
 
-### Admin Commands (Group Only)
-*   `!warn` / `/warn` [reply to message] — Warn a user
-*   `!mute` / `/mute` [reply to message] — Mute a user
-*   `!tban` / `/tban` [duration] [reply to message] — Temp-ban a user (e.g. `!tban 1d`)
-*   `!ban` / `/ban` [reply to message] — Ban a user
-*   `!unban` / `/unban` [username or ID] — Unban a user
-*   `!unmute` / `/unmute` [username or ID] — Unmute a user
-*   `!settings` / `/settings` — Trigger settings configuration panel (redirects to DM)
+### Owner Commands (DM Only)
+*   `!health` / `/health` — Diagnostic status report (restricted strictly to `OWNER_ID`, 60s cooldown)
+
+### Admin Commands
+*   `!warn` / `/warn` [reply or user] [reason] — Warn a user (group only)
+*   `!mute` / `/mute` [reply or user] [duration] [reason] — Mute a user (group only)
+*   `!tban` / `/tban` [reply or user] <duration> [reason] — Temp-ban a user, e.g. `!tban 1d` (group only)
+*   `!ban` / `/ban` [reply or user] [reason] — Permanently ban a user (group only)
+*   `!unban` / `/unban` [reply or user] — Unban a user and reset warning count (group only)
+*   `!unmute` / `/unmute` [reply or user] — Unmute a user (group only)
+*   `!settings` / `/settings` — Open interactive settings control panel (group redirects to DM; 4s cooldown)
+*   `!setlogchannel` / `/setlogchannel` — Configure the group's moderation audit log channel (DM only)
 
 ### Public Commands
 *   `!ping` / `/ping` — Smoke-test bot liveness
-*   `!rules` / `/rules` — Display the group's rules text (with link previews enabled)
-*   `!guide` / `/guide` — Display the group's guide text (with link previews enabled)
+*   `!rules` / `/rules` — Display the group's rules text (group only, 60s chat-wide cooldown)
+*   `!guide` / `/guide` — Display the group's guide text (group only, 60s chat-wide cooldown)
 
 ---
 
-## 🚢 Production Deployment (VPS)
+## 🚢 Production Deployment & Operations Runbook (VPS)
 
-On your host machine, install PM2 globally:
+### 1. Starting in Production with PM2
+Install PM2 and `pm2-logrotate` globally on the VPS:
 ```bash
 npm install -g pm2
+pm2 install pm2-logrotate
+pm2 set pm2-logrotate:max_size 20M
+pm2 set pm2-logrotate:retain 7
+pm2 set pm2-logrotate:compress true
 ```
 
-1.  Build the TypeScript project:
+Compile TypeScript + copy runtime assets (`src/i18n` and `src/config/defaults.yaml`) into `dist/`, then start the daemon using [ecosystem.config.js](file:///Users/isandreas/Documents/works/personal/alphapack-ts/ecosystem.config.js):
+```bash
+npm run build
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup
+```
+> **Important:** After running `pm2 startup`, copy and run the exact `sudo env PATH=... pm2 startup systemd -u <user> --hp <home>` command that PM2 prints to the terminal, then run `pm2 save` once more so the process list is restored automatically across VPS reboots.
+
+### 2. Redis Backup Strategy (RDB / AOF)
+AlphaPack connects to the host's native `redis-server` (`127.0.0.1:6379`).
+By default on this host, Redis is configured with **RDB snapshotting enabled** and **AOF disabled** (`redis-cli CONFIG GET save appendonly`):
+*   `save`: `"3600 1 300 100 60 10000"` — Redis automatically writes an RDB snapshot (`dump.rdb`) every 60 minutes if at least 1 key changed, every 5 minutes if ≥100 keys changed, or every 60 seconds if ≥10,000 keys changed.
+*   `appendonly`: `"no"` — Append-Only File logging is disabled, keeping disk I/O and memory overhead minimal on the 768 MB VPS.
+
+**Manual On-Demand Backup (before risky changes or upgrades):**
+Trigger an asynchronous background RDB snapshot and verify its completion timestamp before deploying:
+```bash
+redis-cli BGSAVE
+redis-cli LASTSAVE
+```
+
+### 3. Memory Monitoring & Interpreting the 768 MB Budget
+Use the following commands to monitor process and host memory:
+```bash
+pm2 monit
+pm2 status
+free -m
+```
+**How to interpret the numbers against the 768 MB VPS budget:**
+*   **Node.js V8 Heap Cap (`256 MB`):** Set via `node_args: "--max-old-space-size=256"` in `ecosystem.config.js`. Normal steady-state RSS for `alphapack-bot` is **~65–110 MB**.
+*   **Ops Alert Threshold (`204.8 MB` RSS / 80% of 256 MB):** If process RSS exceeds `204.8 MB`, the built-in memory monitor logs a `memory_warning` via pino and posts an alert to `OPS_CHANNEL_ID` (rate-limited to once per hour).
+*   **PM2 Hard Restart Ceiling (`300 MB` RSS):** Configured via `max_memory_restart: "300M"`. If RSS reaches 300 MB, PM2 gracefully restarts the process before the Linux OOM killer can impact `redis-server` or the OS.
+*   **Host RAM (`free -m`):** look at the **`available`** column (not `free`, since Linux caches disk pages in `buff/cache`). On a 768 MB VPS running OS + `redis-server` (~15–30 MB) + `alphapack-bot` (~80–110 MB), `available` should stay comfortably above **350–450 MB**.
+
+### 4. Restart Procedure (`pm2 restart` vs `pm2 reload`)
+After pulling new code and running `npm run build`:
+```bash
+npm run build
+pm2 restart alphapack-bot
+```
+*   **When to prefer `pm2 restart alphapack-bot` (Recommended):** Because AlphaPack runs in single-instance `fork` mode using Telegram **long polling (`getUpdates`)**, only one process may poll the Bot token at a time. `pm2 restart` sends `SIGINT`, waits for the old process to stop its grammY runner and close Redis cleanly, and then starts the new process — preventing `409 Conflict: terminated by other getUpdates request` errors.
+*   **When `pm2 reload alphapack-bot` applies:** `pm2 reload` is designed for stateless HTTP/webhook servers in `cluster` mode to achieve zero-downtime socket handoff. Because this bot uses long polling in `fork` mode (no HTTP server), always use `pm2 restart alphapack-bot`.
+
+### 5. Reading Audit Logs & Checking `OPS_CHANNEL_ID` Alerts
+*   **Local Flat-File Audit Logs (`logs/audit/YYYY-MM-DD.jsonl`):**
+    Every call to `postActionCard` (moderation actions + `/settings` menu `#SETTINGSCHANGE` events) appends one JSON line (`{"timestamp","chatId","card"}`) to today's file on disk. Files older than `AUDIT_LOG_RETENTION_DAYS` (default 30) are pruned daily based on the filename date.
     ```bash
-    npm run build
+    # View today's raw audit trail
+    cat logs/audit/$(date -u +%F).jsonl
+
+    # Filter for a specific group chatId or action tag
+    grep "#SETTINGSCHANGE" logs/audit/*.jsonl
+    grep -- "-1001234567890" logs/audit/*.jsonl
     ```
-2.  Start the daemon using the bundled ecosystem config:
-    ```bash
-    pm2 start ecosystem.config.js
-    pm2 save
-    pm2 startup
-```
+*   **Checking `OPS_CHANNEL_ID` Alerts:**
+    *   Set `OPS_CHANNEL_ID=-100xxxxxxxxxx` in `.env` (make sure the bot is an administrator in that channel with **Post Messages** permission).
+    *   Unhandled handler errors (`bot.catch`) and process-level exceptions (`unhandledRejection` / `uncaughtException`) post a concise 4-line stack excerpt to `OPS_CHANNEL_ID` (deduplicated per distinct error for **5 minutes**) while full stack traces are always written to `pm2 logs alphapack-bot`.
 
-### VPS Swap File (Recommended for 768 MB RAM VPS)
-If you run out of memory during `npm install` or `tsc` compilation on a small VPS, configure a swap partition:
+### 6. Troubleshooting Checklist ("If the Bot Seems Stuck")
+If the bot stops responding to commands or scheduled unbans/unmutes appear delayed, run through these 4 checks in order:
+
+1.  **Check PM2 process status & recent logs:**
+    ```bash
+    pm2 status
+    pm2 logs alphapack-bot --lines 100
+    ```
+    Look for `409 Conflict` (another instance polling the same token), `redis_error`, or repeated restart loops (`↺` column in `pm2 status`).
+2.  **Run `/health` via DM (as `OWNER_ID`):**
+    Send `/health` to the bot in a private message. Verify:
+    *   `Redis: ✅ PONG`
+    *   `RSS` and `Heap used` are below `80%` (`204.8 MB`)
+    *   `Scheduler last run` is `< 1m ago` (the scheduler sweeps every 30 seconds; if this isseveral minutes old, the timer loop is stalled).
+3.  **Check native Redis connectivity & status:**
+    ```bash
+    redis-cli PING
+    sudo systemctl status redis
+    ```
+    If `redis-cli PING` does not return `PONG`, restart Redis (`sudo systemctl restart redis`) and then `pm2 restart alphapack-bot`.
+4.  **Check disk space for PM2 & JSONL audit logs:**
+    ```bash
+    df -h
+    du -sh logs/ logs/audit/
+    ```
+    If disk usage is at 100%, `appendAuditLog` and PM2 logs will fail to write. Flush old PM2 logs with `pm2 flush` and verify `AUDIT_LOG_RETENTION_DAYS` is set appropriately.
+
+### 7. VPS Swap File (Recommended for 768 MB RAM VPS)
+If you run out of memory during `npm install` or `tsc` compilation on a small VPS, configure a 1 GB swap file:
 ```bash
 sudo fallocate -l 1G /swapfile
 sudo chmod 600 /swapfile
 sudo mkswap /swapfile
 sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+---
+
+## 🧪 Running Tests
+
+Unit and integration tests use **Vitest** and grammY's API transformer (`bot.api.config.use`) with an in-memory Redis store — no live Telegram token or external network calls are made during tests:
+
+```bash
+npm test
+npm run typecheck && npm run build
 ```
 
 ---
@@ -181,18 +284,21 @@ src/
 ├── middlewares/
 │   ├── command-parser.ts      # Transforms !cmd into /cmd
 │   ├── admin-guard.ts         # Gated access decorator for admin-only commands
-│   ├── group-settings.ts      # Preloads settings from Redis/defaults into ctx
+│   ├── group-settings.ts      # Preloads settings from Redis/defaults + menu audit writer
+│   ├── logger.ts              # Structured request logging + postActionCard helper
 │   └── username-tracker.ts    # Maps Usernames to IDs on messages to resolve targets
 ├── types/                     # TypeScript types (context, group settings models)
-├── utils/                     # Utility libraries (logger, placeholder formatting)
+├── utils/                     # Utility libraries (logger, ops-alert, audit-log, time-parser)
 └── features/                  # Business logic submodules
     ├── moderation/            # Warn, Mute, Ban, alphabet/media filters
-    │   ├── alphabet-filter.ts         # Unicode script filter middleware
-    │   ├── media-filter.ts            # Media-type filter middleware
-    │   └── restriction-punishment.ts  # Shared delete+kick punishment
     ├── anti-spam/             # Rate limiters & flood guards
     ├── welcome/               # Member join/leave hooks & Captcha mechanics
-    ├── mentions/              # Admin relays & User notifications
+    ├── mentions/              # Admin relays & User notifications (with pacing & 429 backoff)
+    ├── ops/                   # Owner-only /health diagnostic command
     ├── settings/              # Settings menu inline-keyboard and conversation flows
     └── scheduler/             # Cron daemon for processing scheduled unban/unmutes
+tests/
+├── helpers/mock-redis.ts      # In-memory Redis mock for deterministic tests
+├── unit/                      # Unit tests (command-parser, permissions, time-parser, warn threshold)
+└── integration/               # Full bot flow tests using grammY API transformers
 ```

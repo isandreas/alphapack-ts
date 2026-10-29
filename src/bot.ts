@@ -20,6 +20,7 @@ import { I18n } from "@grammyjs/i18n";
 import { RedisAdapter } from "@grammyjs/storage-redis";
 import { sequentialize } from "@grammyjs/runner";
 import { conversations, createConversation } from "@grammyjs/conversations";
+import { existsSync } from "fs";
 import { resolve } from "path";
 
 import type { BotContext, SessionData } from "./types/context.js";
@@ -76,14 +77,20 @@ import {
   settingsEditorConversation,
 } from "./features/settings/settings-conversations.js";
 
+// Phase 7 — Ops
+import { healthCommandHandler } from "./features/ops/health.js";
+import { registerOpsApi, sendOpsAlert } from "./utils/ops-alert.js";
+
 export let i18nInstance: I18n<BotContext>;
 
 export function createBot(): Bot<BotContext> {
   const bot = new Bot<BotContext>(env.BOT_TOKEN);
   const redis = getRedisClient();
 
-  // Register bot API for standalone postActionCard usage
+  // Register bot API for standalone postActionCard and ops-alert usage
   registerBotApi(bot.api);
+  registerOpsApi(bot.api);
+
 
   // ── 0. Sequentialize ───────────────────────────────────────────────────────
   // Process updates from the same chat sequentially, different chats in parallel.
@@ -115,11 +122,14 @@ export function createBot(): Bot<BotContext> {
 
   // ── 1. i18n ───────────────────────────────────────────────────────────────
   // directory is resolved at runtime relative to this file's location.
-  // NodeNext CJS: __dirname is available natively.
+  // Supports both dist/i18n (copied by `npm run build`) and fallback to ../src/i18n.
+  const i18nDir = existsSync(resolve(__dirname, "i18n"))
+    ? resolve(__dirname, "i18n")
+    : resolve(__dirname, "../src/i18n");
   i18nInstance = new I18n<BotContext>({
     defaultLocale: env.DEFAULT_LOCALE,
     useSession: true,
-    directory: resolve(__dirname, "i18n"),
+    directory: i18nDir,
     localeNegotiator: (ctx) => {
       return (
         ctx.groupSettings?.locale ||
@@ -237,6 +247,10 @@ export function createBot(): Bot<BotContext> {
   bot.command("rules", rulesCommandHandler);
   bot.command("guide", guideCommandHandler);
 
+  // ── Phase 7: Ops commands ─────────────────────────────────────────────────
+  // /health is DM-only and owner-only; access control is enforced inside the handler.
+  bot.command("health", healthCommandHandler);
+
 
   // ── Event handlers ────────────────────────────────────────────────────────
   bot.on("my_chat_member", myChatMemberHandler);
@@ -244,11 +258,16 @@ export function createBot(): Bot<BotContext> {
   bot.on("message:left_chat_member", onLeaveHandler);
 
   // ── Global error handler ──────────────────────────────────────────────────
-  bot.catch((err) => {
+  // pino receives the FULL error in all branches below.
+  // sendOpsAlert fires afterwards for a concise Telegram summary (rate-limited,
+  // deduped, and a no-op when OPS_CHANNEL_ID is unset).
+  bot.catch(async (err) => {
     const ctx = err.ctx;
     const e = err.error;
 
     if (e instanceof GrammyError) {
+      // "message is not modified" is a harmless Telegram quirk from stale menus.
+      // Don't alert the ops channel for these — they are expected and noisy.
       if (e.description.includes("message is not modified")) {
         logger.debug(
           { event: "grammy_message_not_modified", chat_id: ctx.chat?.id },
@@ -291,6 +310,9 @@ export function createBot(): Bot<BotContext> {
     } else {
       logger.error({ event: "unknown_error", raw: e }, "Unknown error type");
     }
+
+    // Post a concise alert to the ops channel (rate-limited, no-op if unconfigured)
+    await sendOpsAlert(e);
   });
 
   return bot;

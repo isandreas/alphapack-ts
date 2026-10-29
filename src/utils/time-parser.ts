@@ -22,6 +22,7 @@ export function parseDuration(input: string): number | null {
   if (!match) return null;
 
   const value = parseInt(match[1]!, 10);
+  if (value <= 0) return null;
   const unit = match[2]!.toLowerCase();
 
   const multipliers: Record<string, number> = {

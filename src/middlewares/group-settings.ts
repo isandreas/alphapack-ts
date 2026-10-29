@@ -16,15 +16,16 @@
  * Phase 5: /settings write path that calls HSET on groupSettingsKey.
  */
 
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { parse as parseYaml } from "yaml";
 import type { NextFunction } from "grammy";
 import type { BotContext } from "../types/context.js";
 import type { GroupSettings } from "../types/settings.js";
 import { getRedisClient } from "../db/redis.js";
-import { groupSettingsKey } from "../db/keys.js";
+import { groupSettingsKey, knownGroupsKey } from "../db/keys.js";
 import { logger } from "../utils/logger.js";
+import { postActionCard } from "./logger.js";
 
 // ── Resolve __dirname for NodeNext (CJS fallback handles both cases) ───────────
 
@@ -39,7 +40,9 @@ let _defaults: GroupSettings | null = null;
 function getDefaults(): GroupSettings {
   if (_defaults) return _defaults;
 
-  const yamlPath = join(ROOT_DIR, "../config/defaults.yaml");
+  const distYamlPath = join(ROOT_DIR, "../config/defaults.yaml");
+  const srcYamlPath = join(ROOT_DIR, "../../src/config/defaults.yaml");
+  const yamlPath = existsSync(distYamlPath) ? distYamlPath : srcYamlPath;
   try {
     const raw = readFileSync(yamlPath, "utf-8");
     _defaults = parseYaml(raw) as GroupSettings;
@@ -110,6 +113,165 @@ export async function setGroupSetting(
   } else {
     await redis.hset(redisKey, key, String(value));
   }
+}
+
+// ── Menu-Specific Writer + Audit Card (Phase 7b) ──────────────────────────────
+
+/**
+ * Free-text setting keys whose old/new content should NOT be dumped verbatim
+ * into the log channel. Maps dot-notation key → human-readable label.
+ */
+const FREE_TEXT_SETTING_LABELS: Record<string, string> = {
+  "rules.text": "Rules text",
+  "guide.text": "Guide text",
+  "welcome.template": "Welcome template",
+  "goodbye.template": "Goodbye template",
+  "banMessage.template": "Ban message template",
+  "tbanMessage.template": "Temp ban message template",
+  customName: "Custom Name",
+  botName: "Custom Name",
+};
+
+function isFreeTextSetting(key: string): boolean {
+  return (
+    key in FREE_TEXT_SETTING_LABELS ||
+    key.endsWith(".text") ||
+    key.endsWith(".template")
+  );
+}
+
+function getNestedValue(obj: unknown, dotKey: string): unknown {
+  const parts = dotKey.split(".");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let cur: any = obj;
+  for (const part of parts) {
+    if (cur === null || cur === undefined || typeof cur !== "object") {
+      return undefined;
+    }
+    cur = cur[part];
+  }
+  return cur;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function formatSettingVal(v: unknown): string {
+  if (v === undefined || v === null) return "unset";
+  return String(v);
+}
+
+async function resolveGroupLabel(chatId: number): Promise<string> {
+  try {
+    const redis = getRedisClient();
+    const title = await redis.hget(knownGroupsKey(), String(chatId));
+    if (title) {
+      return `${escapeHtml(title)} [<code>${chatId}</code>]`;
+    }
+  } catch {
+    // fallback below
+  }
+  return `<code>${chatId}</code>`;
+}
+
+function formatAdminLabel(ctx: Pick<BotContext, "from">): string {
+  const from = ctx.from;
+  if (!from) return "Unknown Admin";
+  const name =
+    [from.first_name, from.last_name].filter(Boolean).join(" ") ||
+    from.username ||
+    "Admin";
+  return `<a href="tg://user?id=${from.id}">${escapeHtml(name)}</a> (<code>${from.id}</code>)`;
+}
+
+/**
+ * Updates a group setting from the `/settings` menu or its editor conversation
+ * AND posts a `#SETTINGSCHANGE` audit log card via `postActionCard`.
+ *
+ * Scoped strictly to `/settings` menu interactions — standalone commands
+ * (`/welcome`, `/captcha`, `/adminmention`, etc.) continue calling
+ * `setGroupSetting` directly and do NOT emit `#SETTINGSCHANGE` cards.
+ */
+export async function setGroupSettingViaMenu(
+  chatId: number,
+  key: string,
+  newValue: string | number | boolean | null,
+  ctx: Pick<BotContext, "from">,
+): Promise<void> {
+  // 1. Read current merged settings BEFORE writing so we can report old -> new
+  const beforeSettings = await getGroupSettings(chatId);
+  const oldValue = getNestedValue(beforeSettings, key);
+
+  // 2. Persist the setting in Redis
+  await setGroupSetting(chatId, key, newValue);
+
+  // 3. Build and post the #SETTINGSCHANGE log card (no "Go to message" button)
+  const groupLabel = await resolveGroupLabel(chatId);
+  const adminLabel = formatAdminLabel(ctx);
+  const dateStr = new Date().toISOString().replace("T", " ").substring(0, 19);
+
+  let cardLines: string[];
+  if (isFreeTextSetting(key)) {
+    const label = FREE_TEXT_SETTING_LABELS[key] ?? key;
+    cardLines = [
+      `<b>Action:</b> SETTINGSCHANGE`,
+      `<b>Admin:</b> ${adminLabel}`,
+      `<b>Chat:</b> ${groupLabel}`,
+      `<b>Setting:</b> ${escapeHtml(label)} (<code>${escapeHtml(key)}</code>)`,
+      `<b>Change:</b> updated`,
+      `<b>Date:</b> ${dateStr}`,
+      `#SETTINGSCHANGE`,
+    ];
+  } else {
+    cardLines = [
+      `<b>Action:</b> SETTINGSCHANGE`,
+      `<b>Admin:</b> ${adminLabel}`,
+      `<b>Chat:</b> ${groupLabel}`,
+      `<b>Setting:</b> <code>${escapeHtml(key)}</code>`,
+      `<b>From:</b> <code>${escapeHtml(formatSettingVal(oldValue))}</code>`,
+      `<b>To:</b> <code>${escapeHtml(formatSettingVal(newValue))}</code>`,
+      `<b>Date:</b> ${dateStr}`,
+      `#SETTINGSCHANGE`,
+    ];
+  }
+
+  await postActionCard(chatId, cardLines.join("\n"));
+}
+
+/**
+ * Bulk-updates all four Moderation toggles (`warn`, `tban`, `ban`, `mute`) from
+ * the Moderation submenu's "Enable All" / "Disable All" shortcut and posts
+ * ONE combined `#SETTINGSCHANGE` log card instead of four separate cards.
+ */
+export async function setModerationAllViaMenu(
+  chatId: number,
+  enabled: boolean,
+  ctx: Pick<BotContext, "from">,
+): Promise<void> {
+  await setGroupSetting(chatId, "moderation.warn.enabled", enabled);
+  await setGroupSetting(chatId, "moderation.mute.enabled", enabled);
+  await setGroupSetting(chatId, "moderation.tban.enabled", enabled);
+  await setGroupSetting(chatId, "moderation.ban.enabled", enabled);
+
+  const groupLabel = await resolveGroupLabel(chatId);
+  const adminLabel = formatAdminLabel(ctx);
+  const dateStr = new Date().toISOString().replace("T", " ").substring(0, 19);
+
+  const cardLines = [
+    `<b>Action:</b> SETTINGSCHANGE`,
+    `<b>Admin:</b> ${adminLabel}`,
+    `<b>Chat:</b> ${groupLabel}`,
+    `<b>Setting:</b> Moderation (warn, tban, ban, mute)`,
+    `<b>To:</b> <code>${enabled ? "ENABLED" : "DISABLED"}</code>`,
+    `<b>Date:</b> ${dateStr}`,
+    `#SETTINGSCHANGE`,
+  ];
+
+  await postActionCard(chatId, cardLines.join("\n"));
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────

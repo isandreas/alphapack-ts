@@ -1,7 +1,9 @@
-import type { NextFunction } from "grammy";
+import { GrammyError, type NextFunction } from "grammy";
 import type { BotContext } from "../../types/context.js";
 import { getRedisClient } from "../../db/redis.js";
 import {
+  adminRelayCooldownKey,
+  mentionNotifyCooldownKey,
   reportKey,
   reportAdminMessagesKey,
   reportResolvedByKey,
@@ -10,6 +12,71 @@ import { getGroupAdmins, isGroupAdmin } from "../../middlewares/admin-guard.js";
 import { messageLink, privateGroupMessageLink } from "../../utils/deep-link.js";
 import { resolveUsername, hasStartedBot } from "./user-registry.js";
 import { logger } from "../../utils/logger.js";
+
+/**
+ * Explicit pacing delay (ms) between consecutive outgoing Telegram API calls
+ * during multi-recipient `@admin` relay and `@username` mention notifications.
+ * Respects Telegram's ~30 msg/sec global rate limit and avoids 429 errors.
+ */
+export const RELAY_PACE_MS = 75;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Extracts `retry_after` (in seconds) from a Telegram 429 Too Many Requests error,
+ * or returns null if the error is not a 429.
+ */
+function extractRetryAfterSeconds(err: unknown): number | null {
+  if (err instanceof GrammyError && err.error_code === 429) {
+    return typeof err.parameters?.retry_after === "number"
+      ? err.parameters.retry_after
+      : 1;
+  }
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { error_code?: unknown }).error_code === 429
+  ) {
+    const retryAfter = (err as { parameters?: { retry_after?: unknown } })
+      .parameters?.retry_after;
+    return typeof retryAfter === "number" ? retryAfter : 1;
+  }
+  return null;
+}
+
+/**
+ * Executes a Telegram API call and respects `retry_after` backoff if a 429
+ * Too Many Requests response is returned.
+ */
+export async function callWithRetryAfter<T>(
+  fn: () => Promise<T>,
+  contextInfo: Record<string, unknown>,
+  maxRetries = 2,
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      const retryAfterSec = extractRetryAfterSeconds(err);
+      if (retryAfterSec !== null && attempt < maxRetries) {
+        logger.warn(
+          {
+            event: "telegram_429_backoff",
+            retryAfterSec,
+            attempt: attempt + 1,
+            ...contextInfo,
+          },
+          `Telegram 429 Too Many Requests — backing off for ${retryAfterSec}s before retry`,
+        );
+        await sleep(retryAfterSec * 1_000);
+        continue;
+      }
+      throw err;
+    }
+  }
+}
 
 /**
  * Handles group messages containing @admin or user mentions.
@@ -41,14 +108,16 @@ export async function mentionHandlersMiddleware(
   const hasAdminTrigger = /(?:^|\s)@admin\b/i.test(text);
 
   if (hasAdminTrigger && settings.mentions.adminRelay.enabled) {
-    const cooldownKey = `alphapack:${chatId}:cooldown:admin_relay:${sender.id}`;
+    const cooldownKey = adminRelayCooldownKey(chatId, sender.id);
     const isCooldown = await redis.get(cooldownKey);
 
     if (isCooldown) {
       // Reply with i18n cooldown warning
       try {
         await ctx.reply(ctx.t("error_admin_relay_cooldown"));
-      } catch (e) {}
+      } catch {
+        // Ignore reply error in group
+      }
     } else {
       // Set cooldown
       await redis.set(cooldownKey, "1", "EX", settings.mentions.adminRelay.cooldownSeconds);
@@ -91,6 +160,7 @@ export async function mentionHandlersMiddleware(
       const adminMsgsKey = reportAdminMessagesKey(chatId, triggerMessageId);
 
       // Relay to all admins (excluding bots, the sender themselves, and admins who haven't started DM)
+      let isFirstAdminCall = true;
       for (const adminId of adminIds) {
         if (adminId === sender.id) continue;
 
@@ -98,13 +168,28 @@ export async function mentionHandlersMiddleware(
         if (!isStarted) continue;
 
         try {
-          // Forward message
-          await ctx.api.forwardMessage(adminId, chatId, triggerMessageId);
-          // Send report options info message
-          const infoMsg = await ctx.api.sendMessage(adminId, infoText, {
-            parse_mode: "HTML",
-            reply_markup: replyMarkup,
-          });
+          if (!isFirstAdminCall) {
+            await sleep(RELAY_PACE_MS);
+          }
+          isFirstAdminCall = false;
+
+          // Forward message with 429 backoff protection
+          await callWithRetryAfter(
+            () => ctx.api.forwardMessage(adminId, chatId, triggerMessageId),
+            { chatId, adminId, triggerMessageId, op: "forwardMessage" },
+          );
+
+          await sleep(RELAY_PACE_MS);
+
+          // Send report options info message with 429 backoff protection
+          const infoMsg = await callWithRetryAfter(
+            () =>
+              ctx.api.sendMessage(adminId, infoText, {
+                parse_mode: "HTML",
+                reply_markup: replyMarkup,
+              }),
+            { chatId, adminId, triggerMessageId, op: "sendMessage" },
+          );
 
           // Track the admin DM message ID
           await redis.hset(adminMsgsKey, adminId.toString(), infoMsg.message_id.toString());
@@ -121,7 +206,9 @@ export async function mentionHandlersMiddleware(
       // Send confirmation to group
       try {
         await ctx.reply(ctx.t("reply_admin_notified"));
-      } catch (e) {}
+      } catch {
+        // Ignore confirmation reply failure
+      }
     }
   }
 
@@ -147,14 +234,15 @@ export async function mentionHandlersMiddleware(
 
     const senderName = [sender.first_name, sender.last_name].filter(Boolean).join(" ") || "User";
 
-    // Notify targets
+    // Notify targets with explicit pacing and 429 backoff
+    let isFirstMentionCall = true;
     for (const targetId of targetsToNotify) {
       if (targetId === sender.id) continue;
 
       const isStarted = await hasStartedBot(targetId);
       if (!isStarted) continue;
 
-      const mentionCooldownKey = `alphapack:${chatId}:cooldown:mention:${targetId}`;
+      const mentionCooldownKey = mentionNotifyCooldownKey(chatId, targetId);
       const hasCooldown = await redis.get(mentionCooldownKey);
       if (hasCooldown) continue;
 
@@ -162,8 +250,18 @@ export async function mentionHandlersMiddleware(
       await redis.set(mentionCooldownKey, "1", "EX", settings.mentions.userNotify.cooldownSeconds);
 
       try {
+        if (!isFirstMentionCall) {
+          await sleep(RELAY_PACE_MS);
+        }
+        isFirstMentionCall = false;
+
         // Forward the triggering message first
-        await ctx.api.forwardMessage(targetId, chatId, ctx.message!.message_id);
+        await callWithRetryAfter(
+          () => ctx.api.forwardMessage(targetId, chatId, ctx.message!.message_id),
+          { chatId, targetId, messageId: ctx.message?.message_id, op: "forwardMessage" },
+        );
+
+        await sleep(RELAY_PACE_MS);
 
         const dmText = ctx.t("dm_user_mentioned", {
           group: ctx.chat?.title || "Group",
@@ -182,10 +280,14 @@ export async function mentionHandlersMiddleware(
           ],
         };
 
-        await ctx.api.sendMessage(targetId, dmText, {
-          parse_mode: "HTML",
-          reply_markup: replyMarkup,
-        });
+        await callWithRetryAfter(
+          () =>
+            ctx.api.sendMessage(targetId, dmText, {
+              parse_mode: "HTML",
+              reply_markup: replyMarkup,
+            }),
+          { chatId, targetId, messageId: ctx.message?.message_id, op: "sendMessage" },
+        );
       } catch (err: unknown) {
         logger.warn(
           { event: "mention_notify_failed", chatId, targetId, messageId: ctx.message?.message_id, err },
@@ -285,15 +387,25 @@ export async function resolveReportCallbackHandler(ctx: BotContext): Promise<voi
     ],
   };
 
+  let isFirstResolveEdit = true;
   for (const [adminIdStr, infoMsgIdStr] of Object.entries(adminMsgs)) {
     const adminId = parseInt(adminIdStr, 10);
     const infoMsgId = parseInt(infoMsgIdStr, 10);
 
     try {
-      await ctx.api.editMessageText(adminId, infoMsgId, updatedInfoText, {
-        parse_mode: "HTML",
-        reply_markup: updatedMarkup,
-      });
+      if (!isFirstResolveEdit) {
+        await sleep(RELAY_PACE_MS);
+      }
+      isFirstResolveEdit = false;
+
+      await callWithRetryAfter(
+        () =>
+          ctx.api.editMessageText(adminId, infoMsgId, updatedInfoText, {
+            parse_mode: "HTML",
+            reply_markup: updatedMarkup,
+          }),
+        { adminId, infoMsgId, chatId, messageId, op: "editMessageText" },
+      );
     } catch (err: unknown) {
       // Admin might have deleted the message or blocked bot
       logger.debug(
