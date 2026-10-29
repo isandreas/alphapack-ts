@@ -92,7 +92,14 @@ export class InMemoryRedisStore {
     };
 
     client.ttl = async (key: string): Promise<number> => {
-      if (!this.kv.has(key)) return -2;
+      if (
+        !this.kv.has(key) &&
+        !this.hashes.has(key) &&
+        !this.sets.has(key) &&
+        !this.zsets.has(key)
+      ) {
+        return -2;
+      }
       return this.ttls.get(key) ?? -1;
     };
 
@@ -140,6 +147,21 @@ export class InMemoryRedisStore {
         if (h.delete(f)) removed++;
       }
       return removed;
+    };
+
+    client.hincrby = async (
+      key: string,
+      field: string,
+      increment: number,
+    ): Promise<number> => {
+      if (!this.hashes.has(key)) {
+        this.hashes.set(key, new Map());
+      }
+      const h = this.hashes.get(key)!;
+      const current = parseInt(h.get(String(field)) ?? "0", 10);
+      const next = (Number.isNaN(current) ? 0 : current) + Number(increment);
+      h.set(String(field), String(next));
+      return next;
     };
 
     client.sadd = async (key: string, ...members: string[]): Promise<number> => {

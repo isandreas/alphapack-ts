@@ -57,6 +57,8 @@ export async function commandParserMiddleware(
       const rest = match[2] ?? "";        // e.g. " @user reason" or ""
       const rewritten = `/${command}${rest}`;
 
+      ctx.isBangCommand = true;
+
       if (msg.text !== undefined) {
         msg.text = rewritten;
         msg.entities = msg.entities ?? [];
@@ -79,4 +81,18 @@ export async function commandParserMiddleware(
   }
 
   await next();
+}
+
+/**
+ * Middleware factory that only allows commands originally invoked with the "!"
+ * prefix (e.g. "!star", "!user", "!adminlist") and silently ignores "/" prefix
+ * invocations (e.g. "/star").
+ */
+export function requireBangPrefix() {
+  return async (ctx: BotContext, next: NextFunction): Promise<void> => {
+    if (!ctx.isBangCommand) {
+      return;
+    }
+    await next();
+  };
 }

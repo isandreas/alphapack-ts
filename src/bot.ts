@@ -29,7 +29,10 @@ import { getRedisClient } from "./db/redis.js";
 import { sessionKey } from "./db/keys.js";
 import { logger } from "./utils/logger.js";
 
-import { commandParserMiddleware } from "./middlewares/command-parser.js";
+import {
+  commandParserMiddleware,
+  requireBangPrefix,
+} from "./middlewares/command-parser.js";
 import { groupSettingsMiddleware } from "./middlewares/group-settings.js";
 import { auditLoggerMiddleware, registerBotApi } from "./middlewares/logger.js";
 import { limit } from "@grammyjs/ratelimiter";
@@ -68,6 +71,9 @@ import {
 
 import { rulesCommandHandler } from "./features/settings/rules.js";
 import { guideCommandHandler } from "./features/settings/guide.js";
+import { starHandler } from "./features/community/star.js";
+import { userInfoHandler } from "./features/community/user-info.js";
+import { adminListHandler } from "./features/community/admin-list.js";
 import {
   settingsMenu,
   settingsCommandHandler,
@@ -246,6 +252,11 @@ export function createBot(): Bot<BotContext> {
   bot.command("settings", settingsCommandHandler);
   bot.command("rules", rulesCommandHandler);
   bot.command("guide", guideCommandHandler);
+
+  // ── Group utility commands (!-only prefix) ────────────────────────────────
+  bot.command("star", requireBangPrefix(), requireAdmin(), starHandler);
+  bot.command("user", requireBangPrefix(), userInfoHandler);
+  bot.command("adminlist", requireBangPrefix(), adminListHandler);
 
   // ── Phase 7: Ops commands ─────────────────────────────────────────────────
   // /health is DM-only and owner-only; access control is enforced inside the handler.

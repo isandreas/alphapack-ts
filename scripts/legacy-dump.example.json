@@ -1,0 +1,32 @@
+{
+  "chat:-1001234567890:warns": {
+    "type": "hash",
+    "ttl": -1,
+    "value": {
+      "111222333": "2",
+      "444555666": "1"
+    }
+  },
+  "chat:-1001234567890:winevent": {
+    "type": "hash",
+    "ttl": -1,
+    "value": {
+      "111222333": "5",
+      "777888999": "12"
+    }
+  },
+  "cache:chat:-1001234567890:admins": {
+    "type": "set",
+    "ttl": 300,
+    "value": [
+      "111222333",
+      "999000111"
+    ]
+  },
+  "other:legacy:ignored_key": {
+    "type": "string",
+    "ttl": -1,
+    "value": "this key will be safely skipped"
+  }
+}
+

@@ -14,7 +14,8 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "import-dump": "tsx src/scripts/import-dump.ts"
   },
   "dependencies": {
     "@grammyjs/conversations": "^2.1.1",

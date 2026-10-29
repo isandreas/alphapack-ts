@@ -121,3 +121,21 @@ health_dm_only = ❌ This command can only be used in a private message with the
 health_cooldown = ⏳ Please wait { $seconds }s before using /health again.
 settings_cooldown = ⏳ Please wait { $seconds }s before opening /settings again.
 settings_edit_cooldown = ⏳ Please wait { $seconds }s before editing another setting.
+
+# Group Commands (!star, !user, !adminlist)
+usage_star = ⚠️ Usage: !star <@username|user_id> +[n]|-[n] or reply to a message with !star +[n]|-[n]
+reply_star_updated = ⭐ { $target } ({ $change }) now has <b>{ $stars }</b> stars.
+error_user_not_found = ❌ User not found.
+user_info_card =
+    👤 <b>User Information</b>
+
+    • <b>Name:</b> { $name }
+    • <b>User ID:</b> <code>{ $userId }</code>
+    • <b>Username:</b> { $username }
+    • <b>Warns:</b> { $warns }/{ $warnThreshold }
+    • <b>Stars:</b> ⭐ { $stars }
+adminlist_header = 🛡️ <b>Group Administrators</b>
+adminlist_creator_label = 👑 <b>Creator:</b>
+adminlist_admins_label = 👮 <b>Admins:</b>
+adminlist_none = -
+

@@ -122,3 +122,21 @@ health_cooldown = ⏳ Tunggu { $seconds }s lagi sebelum menggunakan /health lagi
 settings_cooldown = ⏳ Tunggu { $seconds }s lagi sebelum membuka /settings lagi.
 settings_edit_cooldown = ⏳ Tunggu { $seconds }s lagi sebelum mengedit pengaturan lain.
 
+# Perintah Grup (!star, !user, !adminlist)
+usage_star = ⚠️ Penggunaan: !star <@username|user_id> +[n]|-[n] atau balas pesan dengan !star +[n]|-[n]
+reply_star_updated = ⭐ { $target } ({ $change }) sekarang memiliki <b>{ $stars }</b> bintang.
+error_user_not_found = ❌ Pengguna tidak ditemukan.
+user_info_card =
+    👤 <b>Informasi Pengguna</b>
+
+    • <b>Nama:</b> { $name }
+    • <b>ID Pengguna:</b> <code>{ $userId }</code>
+    • <b>Username:</b> { $username }
+    • <b>Peringatan:</b> { $warns }/{ $warnThreshold }
+    • <b>Bintang:</b> ⭐ { $stars }
+adminlist_header = 🛡️ <b>Administrator Grup</b>
+adminlist_creator_label = 👑 <b>Pemilik:</b>
+adminlist_admins_label = 👮 <b>Admin:</b>
+adminlist_none = -
+
+
