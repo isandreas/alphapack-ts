@@ -328,11 +328,48 @@ export async function requestGroupApprovalIfNeeded(
 }
 
 /**
+ * Reconciles known groups with Telegram API, discovering groups present in Redis
+ * that are not yet recorded in known_groups.
+ */
+export async function reconcileKnownGroups(api: Api): Promise<void> {
+  const redis = getRedisClient();
+  const keys = await redis.keys("alphapack:-*");
+  for (const k of keys) {
+    const match = /^alphapack:(-?\d+)/.exec(k);
+    if (match) {
+      const id = parseInt(match[1]!, 10);
+      if (!Number.isNaN(id) && id < 0) {
+        const existing = await redis.hget(knownGroupsKey(), String(id));
+        if (!existing) {
+          try {
+            const chat = await api.getChat(id);
+            const title =
+              chat && typeof chat === "object" && "title" in chat && chat.title
+                ? chat.title
+                : `Group ${id}`;
+            await upsertKnownGroup(id, title);
+          } catch (err: unknown) {
+            if (err instanceof GrammyError && err.parameters?.migrate_to_chat_id) {
+              await migrateGroupInRedis(id, err.parameters.migrate_to_chat_id);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
  * Checks all existing known groups in Redis at startup and asks the owner
  * for approval for any group that has not yet been approved.
  */
 export async function checkExistingGroupsOnStartup(api: Api): Promise<void> {
   try {
+    const redis = getRedisClient();
+    await redis.persist(approvedGroupsKey());
+
+    await reconcileKnownGroups(api);
+
     const knownGroups = await getAllKnownGroups();
     for (const { chatId, title } of knownGroups) {
       if (await isGroupBanned(chatId)) {
@@ -340,9 +377,28 @@ export async function checkExistingGroupsOnStartup(api: Api): Promise<void> {
         await api.leaveChat(chatId).catch(() => {});
         continue;
       }
-      const approved = await isGroupApproved(chatId);
+
+      let currentChatId = chatId;
+      let currentTitle = title;
+      try {
+        const chat = await api.getChat(chatId);
+        if (chat && typeof chat === "object" && "title" in chat && chat.title && chat.title !== title) {
+          currentTitle = chat.title;
+          await upsertKnownGroup(chatId, chat.title);
+        }
+      } catch (err: unknown) {
+        if (err instanceof GrammyError && err.parameters?.migrate_to_chat_id) {
+          const newId = err.parameters.migrate_to_chat_id;
+          await migrateGroupInRedis(chatId, newId, title);
+          currentChatId = newId;
+        }
+      }
+
+      const approved = await isGroupApproved(currentChatId);
       if (!approved) {
-        await requestGroupApprovalIfNeeded(api, chatId, title);
+        // Clear stale pending marker so owner gets re-prompted on startup
+        await redis.srem(pendingApprovalGroupsKey(), String(currentChatId));
+        await requestGroupApprovalIfNeeded(api, currentChatId, currentTitle);
       }
     }
   } catch (err: unknown) {

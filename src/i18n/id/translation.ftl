@@ -211,6 +211,19 @@ inbox_multi_group_note = ℹ️ <i>Catatan: Pengguna ini berada di beberapa grup
 inbox_reply_sent = ✅ Balasan terkirim ke pengguna.
 inbox_reply_failed = ❌ Gagal mengirim balasan ke pengguna (pengguna mungkin telah memblokir bot).
 
+# Bot Command Descriptions
+cmd_desc_rules = Lihat peraturan grup
+cmd_desc_guide = Lihat panduan dan tautan grup
+cmd_desc_ping = Cek latensi dan status bot
+cmd_desc_warn = Beri peringatan kepada anggota
+cmd_desc_mute = Bisukan anggota sementara atau permanen
+cmd_desc_ban = Blokir anggota permanen
+cmd_desc_tban = Blokir anggota sementara
+cmd_desc_unmute = Buka bisu anggota
+cmd_desc_unban = Buka blokir anggota
+cmd_desc_settings = Buka menu pengaturan grup
+cmd_desc_start = Mulai bot dan lihat info
+
 
 
 
