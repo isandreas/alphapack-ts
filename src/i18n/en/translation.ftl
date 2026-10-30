@@ -211,5 +211,18 @@ inbox_multi_group_note = ℹ️ <i>Note: This user is in multiple groups with th
 inbox_reply_sent = ✅ Reply sent to user.
 inbox_reply_failed = ❌ Failed to deliver reply to the user (they may have blocked the bot).
 
+# Bot Command Descriptions
+cmd_desc_rules = Display group rules
+cmd_desc_guide = Display group guide & links
+cmd_desc_ping = Check bot latency and status
+cmd_desc_warn = Warn a member
+cmd_desc_mute = Mute a member temporarily or permanently
+cmd_desc_ban = Ban a member permanently
+cmd_desc_tban = Ban a member temporarily
+cmd_desc_unmute = Unmute a muted member
+cmd_desc_unban = Unban a banned member
+cmd_desc_settings = Open group settings menu
+cmd_desc_start = Start the bot and get info
+
 
 

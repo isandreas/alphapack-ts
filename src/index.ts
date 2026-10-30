@@ -18,13 +18,14 @@
  */
 
 import { run } from "@grammyjs/runner";
-import { createBot } from "./bot.js";
+import { createBot, i18nInstance } from "./bot.js";
 import { connect, closeRedisClient, healthcheck } from "./db/redis.js";
 import { logger } from "./utils/logger.js";
 import { startScheduler } from "./features/scheduler/action-scheduler.js";
 import { startMemoryMonitor, sendOpsAlert } from "./utils/ops-alert.js";
 import { cleanupOldAuditLogs } from "./utils/audit-log.js";
 import { checkExistingGroupsOnStartup } from "./features/settings/group-registry.js";
+import { registerBotCommands } from "./utils/bot-commands.js";
 
 async function main(): Promise<void> {
   logger.info({ event: "startup_begin" }, "AlphaPack starting up…");
@@ -75,6 +76,14 @@ async function main(): Promise<void> {
   });
 
   logger.info({ event: "bot_running" }, "AlphaPack is running ✓  (long polling, no webhook)");
+
+  // ── 3.3 Register bot commands for autocomplete ───────────────────────────
+  registerBotCommands(bot.api, i18nInstance).catch((err: unknown) => {
+    logger.warn(
+      { err, event: "startup_bot_commands_error" },
+      "Startup bot commands registration failed",
+    );
+  });
 
   // ── 3.4 Check existing known groups for owner approval ───────────────────
   // If the bot is already in group(s) when this feature releases, prompt the
