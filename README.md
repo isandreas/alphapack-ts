@@ -36,7 +36,7 @@ cp .env.example .env
 | `LOG_LEVEL` | Pino logger output verbosity (`trace`, `debug`, `info`, `warn`, `error`, `fatal`). | `info` |
 | `BOT_CUSTOM_NAME` | The bot name used in welcome, goodbye, rules, and guide templates. If omitted, falls back to the bot's first name on Telegram. | `Alpha Pack` |
 | `OPS_CHANNEL_ID` | Optional global Telegram channel ID for bot-operator crash/error alerts and >80% memory warnings. If unset, alerting is skipped silently. | `null` |
-| `OWNER_ID` | Optional single numeric Telegram user ID allowed to run `/health` in DM. If unset, `/health` refuses everyone unconditionally. | `null` |
+| `OWNER_ID` | Numeric Telegram user ID of the bot owner. Receives group approval prompts in DM and is authorized to run `/health`, `/activegroups`, `/exitgroup`, `/bangroup`, and `/unbangroup` in DM. | `null` |
 | `AUDIT_LOG_RETENTION_DAYS` | Number of days to retain daily flat-file audit logs under `logs/audit/YYYY-MM-DD.jsonl`. | `30` |
 
 ---
@@ -125,12 +125,24 @@ Blocks and kicks users who post restricted media types. Each type is an **indepe
     npm run import-dump -- scripts/legacy-dump.example.json
     ```
 
+### 10. Owner Group Approval & Group Management
+*   **Group Approval Gate:** The bot only operates in groups approved by `OWNER_ID` (persisted in Redis under `alphapack:bot:approved_groups`).
+*   **Pending Evaluation Notice:** When added to a new group (or when discovering pre-existing unapproved groups on startup or incoming updates), the bot sends **1 message only** in English to the group informing members that the request will be evaluated by the bot owner, and sends an interactive approval prompt (`✅ Approve` / `❌ Reject`) to `OWNER_ID` in DM. While waiting for owner confirmation, all other group commands, moderation, and filters remain completely silent.
+*   **Approve / Reject Actions:**
+    *   **Approve:** Saves the group to `alphapack:bot:approved_groups` and posts a notice in the group informing admins they can start configuring the bot with `/settings`.
+    *   **Reject:** Sends a goodbye message in the group stating that the owner does not approve the bot to run, removes the group from Redis, and leaves the chat immediately.
+*   **Spam-Invite Protection (`!bangroup` / `!unbangroup`):** The owner can ban a `chat_id` (`alphapack:bot:banned_groups`). If someone invites the bot to a banned group, it leaves immediately without messaging the group or spamming the owner with approval requests.
+
 ---
 
 ## 🛠️ Commands List
 
 ### Owner Commands (DM Only)
 *   `!health` / `/health` — Diagnostic status report (restricted strictly to `OWNER_ID`, 60s cooldown)
+*   `!activegroups` / `/activegroups` — List all approved active groups and their `chat_id`s
+*   `!exitgroup <chat_id>` / `/exitgroup <chat_id>` — Remove a group from active groups and make the bot leave immediately (e.g. `!exitgroup -1001234567890`)
+*   `!bangroup <chat_id>` / `/bangroup <chat_id>` — Ban a group `chat_id`, remove it from active/pending registries, and automatically leave if invited (e.g. `!bangroup -1001234567890`)
+*   `!unbangroup <chat_id>` / `/unbangroup <chat_id>` — Remove a group `chat_id` from the banned list (e.g. `!unbangroup -1001234567890`)
 
 ### Admin Commands
 *   `!warn` / `/warn` [reply or user] [reason] — Warn a user (group only)

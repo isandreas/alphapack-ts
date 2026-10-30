@@ -6,6 +6,7 @@ import { logger } from "../../utils/logger.js";
 import { formatUserMention } from "../../utils/target-resolver.js";
 import { i18nInstance } from "../../bot.js";
 import { env } from "../../config/env.js";
+import { isGroupApproved } from "../settings/group-registry.js";
 
 export interface ScheduledAction {
   action: "unmute" | "unban" | "captcha-kick";
@@ -187,7 +188,9 @@ async function executeAction(bot: Bot<BotContext>, item: ScheduledAction): Promi
       const notifyText = i18nInstance.t(locale, "group_tban_expired", {
         target: "TARGET_PLACEHOLDER"
       }).replace("TARGET_PLACEHOLDER", formatUserMention(item.userId, item.displayName));
-      await bot.api.sendMessage(item.chatId, notifyText, { parse_mode: "HTML" });
+      if (await isGroupApproved(item.chatId)) {
+        await bot.api.sendMessage(item.chatId, notifyText, { parse_mode: "HTML" });
+      }
 
     } else {
       let groupTitle = "the group";

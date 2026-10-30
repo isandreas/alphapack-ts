@@ -183,6 +183,24 @@ export class InMemoryRedisStore {
       return this.sets.get(key)?.has(String(member)) ? 1 : 0;
     };
 
+    client.srem = async (key: string, ...members: string[]): Promise<number> => {
+      const s = this.sets.get(key);
+      if (!s) return 0;
+      let removed = 0;
+      for (const m of members) {
+        if (s.delete(String(m))) {
+          removed++;
+        }
+      }
+      return removed;
+    };
+
+    client.smembers = async (key: string): Promise<string[]> => {
+      const s = this.sets.get(key);
+      if (!s) return [];
+      return Array.from(s);
+    };
+
     client.zadd = async (
       key: string,
       score: number,

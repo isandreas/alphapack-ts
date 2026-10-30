@@ -139,3 +139,42 @@ adminlist_creator_label = 👑 <b>Creator:</b>
 adminlist_admins_label = 👮 <b>Admins:</b>
 adminlist_none = -
 
+# Group Approval & Owner Group Management
+group_approval_request =
+    🔔 <b>Group Approval Request</b>
+
+    The bot requires your approval to run in this group:
+    • <b>Group:</b> { $title }
+    • <b>Chat ID:</b> <code>{ $chatId }</code>
+    • <b>Added by:</b> { $addedBy }
+
+    Do you approve the bot to run in this group?
+btn_approve_group = ✅ Approve
+btn_reject_group = ❌ Reject
+group_approval_approved =
+    ✅ <b>Group Approved</b>
+
+    • <b>Group:</b> { $title }
+    • <b>Chat ID:</b> <code>{ $chatId }</code>
+group_approval_rejected =
+    ❌ <b>Group Rejected</b>
+
+    • <b>Group:</b> { $title }
+    • <b>Chat ID:</b> <code>{ $chatId }</code>
+
+    The bot has said goodbye and left the group.
+group_approval_pending = ⏳ This group's request to use the bot is pending and will be evaluated by the bot owner.
+group_approved_notice = ✅ The request has been approved by the bot owner! Admins can now start configuring the bot with /settings.
+group_rejected_goodbye = 👋 Goodbye! The bot owner does not approve this bot to run in this group. Leaving now.
+activegroups_empty = 📋 There are currently no active approved groups.
+activegroups_header = 📋 <b>Active Approved Groups ({ $count })</b>
+usage_exitgroup = ⚠️ Usage: /exitgroup <chat_id> (e.g. /exitgroup -1001234567890)
+exitgroup_success = ✅ Left group <b>{ $title }</b> (<code>{ $chatId }</code>) and removed it from active groups.
+exitgroup_failed = ⚠️ Removed <code>{ $chatId }</code> from active groups, but failed to leave the chat on Telegram (the bot may have already left).
+usage_bangroup = ⚠️ Usage: /bangroup <chat_id> (e.g. /bangroup -1001234567890)
+bangroup_success = 🚫 Group <code>{ $chatId }</code> has been banned. The bot will automatically leave if invited.
+usage_unbangroup = ⚠️ Usage: /unbangroup <chat_id> (e.g. /unbangroup -1001234567890)
+unbangroup_success = ✅ Group <code>{ $chatId }</code> has been unbanned.
+unbangroup_not_banned = ℹ️ Group <code>{ $chatId }</code> was not in the banned list.
+
+

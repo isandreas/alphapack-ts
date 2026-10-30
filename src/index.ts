@@ -24,6 +24,7 @@ import { logger } from "./utils/logger.js";
 import { startScheduler } from "./features/scheduler/action-scheduler.js";
 import { startMemoryMonitor, sendOpsAlert } from "./utils/ops-alert.js";
 import { cleanupOldAuditLogs } from "./utils/audit-log.js";
+import { checkExistingGroupsOnStartup } from "./features/settings/group-registry.js";
 
 async function main(): Promise<void> {
   logger.info({ event: "startup_begin" }, "AlphaPack starting up…");
@@ -74,6 +75,16 @@ async function main(): Promise<void> {
   });
 
   logger.info({ event: "bot_running" }, "AlphaPack is running ✓  (long polling, no webhook)");
+
+  // ── 3.4 Check existing known groups for owner approval ───────────────────
+  // If the bot is already in group(s) when this feature releases, prompt the
+  // owner in DM for approval for each unapproved group.
+  checkExistingGroupsOnStartup(bot.api).catch((err: unknown) => {
+    logger.warn(
+      { err, event: "startup_group_approval_error" },
+      "Startup group approval check failed",
+    );
+  });
 
   // ── 3.5 Start Scheduler ──────────────────────────────────────────────────
   const schedulerInterval = startScheduler(bot);

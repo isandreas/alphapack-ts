@@ -139,4 +139,43 @@ adminlist_creator_label = 👑 <b>Pemilik:</b>
 adminlist_admins_label = 👮 <b>Admin:</b>
 adminlist_none = -
 
+# Persetujuan Grup & Manajemen Grup Pemilik
+group_approval_request =
+    🔔 <b>Permintaan Persetujuan Grup</b>
+
+    Bot memerlukan persetujuan Anda untuk berjalan di grup ini:
+    • <b>Grup:</b> { $title }
+    • <b>ID Chat:</b> <code>{ $chatId }</code>
+    • <b>Ditambahkan oleh:</b> { $addedBy }
+
+    Apakah Anda menyetujui bot untuk berjalan di grup ini?
+btn_approve_group = ✅ Setujui
+btn_reject_group = ❌ Tolak
+group_approval_approved =
+    ✅ <b>Grup Disetujui</b>
+
+    • <b>Grup:</b> { $title }
+    • <b>ID Chat:</b> <code>{ $chatId }</code>
+group_approval_rejected =
+    ❌ <b>Grup Ditolak</b>
+
+    • <b>Grup:</b> { $title }
+    • <b>ID Chat:</b> <code>{ $chatId }</code>
+
+    Bot telah mengucapkan selamat tinggal dan keluar dari grup.
+group_approval_pending = ⏳ This group's request to use the bot is pending and will be evaluated by the bot owner.
+group_approved_notice = ✅ The request has been approved by the bot owner! Admins can now start configuring the bot with /settings.
+group_rejected_goodbye = 👋 Goodbye! The bot owner does not approve this bot to run in this group. Leaving now.
+activegroups_empty = 📋 Saat ini tidak ada grup aktif yang disetujui.
+activegroups_header = 📋 <b>Grup Aktif yang Disetujui ({ $count })</b>
+usage_exitgroup = ⚠️ Penggunaan: /exitgroup <chat_id> (contoh: /exitgroup -1001234567890)
+exitgroup_success = ✅ Berhasil keluar dari grup <b>{ $title }</b> (<code>{ $chatId }</code>) dan menghapusnya dari daftar grup aktif.
+exitgroup_failed = ⚠️ Menghapus <code>{ $chatId }</code> dari daftar grup aktif, tetapi gagal keluar dari chat di Telegram (bot mungkin sudah keluar).
+usage_bangroup = ⚠️ Penggunaan: /bangroup <chat_id> (contoh: /bangroup -1001234567890)
+bangroup_success = 🚫 Grup <code>{ $chatId }</code> telah diblokir (ban). Bot akan otomatis keluar jika diundang.
+usage_unbangroup = ⚠️ Penggunaan: /unbangroup <chat_id> (contoh: /unbangroup -1001234567890)
+unbangroup_success = ✅ Blokir untuk grup <code>{ $chatId }</code> telah dibuka (unban).
+unbangroup_not_banned = ℹ️ Grup <code>{ $chatId }</code> tidak ada dalam daftar grup yang diblokir.
+
+
 
