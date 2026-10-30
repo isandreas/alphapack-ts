@@ -177,5 +177,40 @@ usage_unbangroup = ⚠️ Penggunaan: /unbangroup <chat_id> (contoh: /unbangroup
 unbangroup_success = ✅ Blokir untuk grup <code>{ $chatId }</code> telah dibuka (unban).
 unbangroup_not_banned = ℹ️ Grup <code>{ $chatId }</code> tidak ada dalam daftar grup yang diblokir.
 
+# Grup Inbox & Kirim Pesan
+setinboxgroup_dm_only = ❌ Perintah ini hanya dapat digunakan di DM dengan bot. Kirim pesan pribadi!
+setinboxgroup_checking = ⏳ Memeriksa status admin Anda di seluruh grup...
+setinboxgroup_no_groups = Anda bukan admin di grup aktif mana pun yang saat ini memiliki bot ini.
+setinboxgroup_min_two_groups = ⚠️ Anda harus menjadi admin di minimal 2 grup aktif bersama bot untuk mengatur grup inbox (satu grup asal dan satu grup inbox tujuan).
+setinboxgroup_select_source = Langkah 1: Pilih grup asal yang pesan DM anggotanya ingin diteruskan:
+setinboxgroup_select_target =
+    Langkah 2: Pilih grup inbox tujuan untuk <b>{ $group }</b> dari tombol di bawah, atau kirimkan <code>&lt;chat_id&gt;</code> grup tujuan:
+setinboxgroup_btn_cancel = ❌ Batal
+setinboxgroup_cancelled = ❌ Operasi dibatalkan.
+setinboxgroup_same_group_error = ❌ Grup inbox tujuan tidak boleh sama dengan grup asal.
+setinboxgroup_cleared = ✅ Grup inbox telah dinonaktifkan untuk <b>{ $group }</b>.
+unsetinboxgroup_none_configured = ℹ️ Tidak ada grup Anda yang saat ini memiliki konfigurasi grup inbox.
+unsetinboxgroup_select_group = Pilih grup yang konfigurasi grup inbox-nya ingin Anda hapus:
+setinboxgroup_invalid_target = ❌ Pilihan grup atau ID chat tidak valid. Silakan jalankan !setinboxgroup lagi.
+setinboxgroup_not_target_admin = ❌ Anda harus menjadi administrator di grup inbox tujuan untuk menghubungkannya.
+setinboxgroup_bot_not_member = ❌ Saya bukan anggota (atau tidak dapat mengirim pesan) di grup tujuan tersebut. Tambahkan saya ke grup tujuan terlebih dahulu, lalu coba !setinboxgroup lagi.
+setinboxgroup_success = ✅ Grup inbox untuk <b>{ $group }</b> telah diatur ke <b>{ $inbox }</b> (<code>{ $inboxId }</code>).
+setinboxgroup_target_confirm = 📥 Grup ini sekarang diatur sebagai grup inbox untuk <b>{ $group }</b>. Balas (reply) pesan pengguna yang diteruskan di sini untuk membalas melalui bot.
+
+usage_sendmessage = ⚠️ Penggunaan: !sendmessage <chat_id> <pesan> (atau lampirkan media / balas pesan di DM dengan !sendmessage <chat_id> [caption])
+sendmessage_unauthorized = ❌ Anda tidak memiliki izin untuk mengirim pesan atas nama bot ke grup <code>{ $chatId }</code>.
+sendmessage_success = ✅ Pesan berhasil dikirim ke <b>{ $title }</b> (<code>{ $chatId }</code>).
+sendmessage_failed = ❌ Gagal mengirim pesan ke <code>{ $chatId }</code>. Pastikan bot berada di grup tersebut dan memiliki izin mengirim pesan.
+
+inbox_relay_header =
+    📩 <b>Pesan Masuk dari Pengguna</b>
+    • <b>Dari:</b> { $sender } (<code>{ $userId }</code>)
+    • <b>Username:</b> { $username }
+    • <b>Grup:</b> { $group }
+inbox_multi_group_note = ℹ️ <i>Catatan: Pengguna ini berada di beberapa grup bersama bot ({ $groups }).</i>
+inbox_reply_sent = ✅ Balasan terkirim ke pengguna.
+inbox_reply_failed = ❌ Gagal mengirim balasan ke pengguna (pengguna mungkin telah memblokir bot).
+
+
 
 

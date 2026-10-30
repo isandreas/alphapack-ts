@@ -1,3 +1,4 @@
+import { GrammyError } from "grammy";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createBot } from "../../src/bot.js";
 import { InMemoryRedisStore } from "../helpers/mock-redis.js";
@@ -497,6 +498,62 @@ describe("Group approval workflow, startup check, /activegroups, and /exitgroup"
         (c) => c.method === "leaveChat" && c.payload.chat_id === GROUP_A_ID,
       ),
     ).toBe(true);
+  });
+
+  it("re-prompts owner on startup despite stale pending marker, discovers groups from Redis keys, migrates basic→supergroup, and keeps approvals without TTL", async () => {
+    const { bot, apiCalls } = setupBot();
+    const redis = getRedisClient();
+    const BASIC_ID = -4999999999;
+    const DISCOVERED_ID = -1003333333333;
+
+    // Stale pending marker for Group A (would previously block the DM forever)
+    await redis.hset(knownGroupsKey(), String(GROUP_A_ID), "Stale Pending");
+    await redis.sadd(pendingApprovalGroupsKey(), String(GROUP_A_ID));
+
+    // Group only present through its Redis data (not in known_groups)
+    await redis.hset(`alphapack:${DISCOVERED_ID}:warns`, "1", "1");
+
+    // Approved basic group that was upgraded to GROUP_B_ID
+    await redis.hset(knownGroupsKey(), String(BASIC_ID), "Upgraded Group");
+    await redis.sadd(approvedGroupsKey(), String(BASIC_ID));
+    await redis.expire(approvedGroupsKey(), 100);
+
+    bot.api.config.use(async (prev, method, payload, signal) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const p = (payload ?? {}) as Record<string, any>;
+      if (method === "getChat") {
+        if (p.chat_id === BASIC_ID) {
+          throw new GrammyError(
+            "Call to 'getChat' failed!",
+            {
+              ok: false,
+              error_code: 400,
+              description: "Bad Request: group chat was upgraded to a supergroup chat",
+              parameters: { migrate_to_chat_id: GROUP_B_ID },
+            },
+            "getChat",
+            p,
+          );
+        }
+        if (p.chat_id === DISCOVERED_ID) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return { ok: true, result: { id: DISCOVERED_ID, type: "supergroup", title: "Discovered" } } as any;
+        }
+      }
+      return prev(method, payload, signal);
+    });
+
+    await checkExistingGroupsOnStartup(bot.api);
+
+    expect(await isGroupApproved(GROUP_B_ID)).toBe(true);
+    expect(await isGroupApproved(BASIC_ID)).toBe(false);
+    expect(await redis.ttl(approvedGroupsKey())).toBe(-1);
+
+    const ownerText = apiCalls
+      .filter((c) => c.method === "sendMessage" && c.payload.chat_id === OWNER_ID)
+      .map((c) => String(c.payload.text));
+    expect(ownerText.some((t) => t.includes(String(GROUP_A_ID)))).toBe(true);
+    expect(ownerText.some((t) => t.includes(String(DISCOVERED_ID)))).toBe(true);
   });
 });
 

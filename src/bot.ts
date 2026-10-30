@@ -51,6 +51,16 @@ import {
   unbanGroupCommandHandler,
 } from "./features/settings/group-registry.js";
 import { setLogChannelCommand, setLogChannelConversation } from "./features/settings/set-log-channel.js";
+import {
+  setInboxGroupCommand,
+  setInboxGroupConversation,
+  unsetInboxGroupCommand,
+  unsetInboxGroupConversation,
+} from "./features/settings/set-inbox-group.js";
+import {
+  sendMessageCommandHandler,
+  inboxRelayMessageHandler,
+} from "./features/inbox/inbox-relay.js";
 
 import { warnHandler, removeWarnHandler } from "./features/moderation/warn.js";
 import { muteHandler, unmuteHandler } from "./features/moderation/mute.js";
@@ -205,7 +215,21 @@ export function createBot(): Bot<BotContext> {
 
   // ── 8. Conversations ──────────────────────────────────────────────────────
   bot.use(conversations({ plugins: [i18nInstance] }));
+  // Allow slash/bang commands in DM (except /cancel which is handled inside
+  // settingsEditor) to exit any unfinished conversation so commands like
+  // /settings are never swallowed by a pending waitForCallbackQuery step.
+  bot.use(async (ctx, next) => {
+    if (ctx.chat?.type === "private") {
+      const text = ctx.message?.text?.trim() ?? "";
+      if (text.startsWith("/") && !/^\/cancel(?:@\w+)?$/i.test(text)) {
+        await ctx.conversation.exitAll();
+      }
+    }
+    await next();
+  });
   bot.use(createConversation(setLogChannelConversation, { id: "setLogChannel" }));
+  bot.use(createConversation(setInboxGroupConversation, { id: "setInboxGroup" }));
+  bot.use(createConversation(unsetInboxGroupConversation, { id: "unsetInboxGroup" }));
   bot.use(createConversation(settingsEditorConversation, { id: "settingsEditor" }));
 
   // Register Settings Menu
@@ -254,6 +278,9 @@ export function createBot(): Bot<BotContext> {
 
   // ── Settings commands ─────────────────────────────────────────────────────
   bot.command("setlogchannel", setLogChannelCommand);
+  bot.command("setinboxgroup", setInboxGroupCommand);
+  bot.command("unsetinboxgroup", unsetInboxGroupCommand);
+  bot.command("sendmessage", sendMessageCommandHandler);
   bot.command("welcome", requireAdmin(), welcomeToggleCommand);
   bot.command("setwelcome", requireAdmin(), setWelcomeCommand);
   bot.command("goodbye", requireAdmin(), goodbyeToggleCommand);
@@ -284,6 +311,7 @@ export function createBot(): Bot<BotContext> {
   bot.on("my_chat_member", myChatMemberHandler);
   bot.on("message:new_chat_members", onJoinHandler);
   bot.on("message:left_chat_member", onLeaveHandler);
+  bot.on("message", inboxRelayMessageHandler);
 
   // ── Global error handler ──────────────────────────────────────────────────
   // pino receives the FULL error in all branches below.

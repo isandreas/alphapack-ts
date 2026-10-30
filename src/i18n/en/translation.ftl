@@ -177,4 +177,39 @@ usage_unbangroup = ⚠️ Usage: /unbangroup <chat_id> (e.g. /unbangroup -100123
 unbangroup_success = ✅ Group <code>{ $chatId }</code> has been unbanned.
 unbangroup_not_banned = ℹ️ Group <code>{ $chatId }</code> was not in the banned list.
 
+# Inbox Group & Send Message
+setinboxgroup_dm_only = ❌ This command can only be used in a DM with the bot. Send me a private message!
+setinboxgroup_checking = ⏳ Checking your admin status across groups...
+setinboxgroup_no_groups = You are not an admin of any active group this bot is currently in.
+setinboxgroup_min_two_groups = ⚠️ You must be an admin in at least 2 active groups with the bot to configure an inbox group (one source group and one target inbox group).
+setinboxgroup_select_source = Step 1: Select the source group whose member DMs should be forwarded:
+setinboxgroup_select_target =
+    Step 2: Select the target inbox group for <b>{ $group }</b> from the buttons below, or send the target group's <code>&lt;chat_id&gt;</code>:
+setinboxgroup_btn_cancel = ❌ Cancel
+setinboxgroup_cancelled = ❌ Operation cancelled.
+setinboxgroup_same_group_error = ❌ Target inbox group cannot be the same as the source group.
+setinboxgroup_cleared = ✅ Inbox group has been disabled for <b>{ $group }</b>.
+unsetinboxgroup_none_configured = ℹ️ None of your groups currently have an inbox group configured.
+unsetinboxgroup_select_group = Select the group whose inbox group you want to remove:
+setinboxgroup_invalid_target = ❌ Invalid group selection or chat ID. Please run !setinboxgroup again.
+setinboxgroup_not_target_admin = ❌ You must be an administrator in the target inbox group to link it.
+setinboxgroup_bot_not_member = ❌ I am not a member (or cannot send messages) in that target group. Please add me to the target group first, then try !setinboxgroup again.
+setinboxgroup_success = ✅ Inbox group for <b>{ $group }</b> has been set to <b>{ $inbox }</b> (<code>{ $inboxId }</code>).
+setinboxgroup_target_confirm = 📥 This group is now configured as the inbox group for <b>{ $group }</b>. Reply to any relayed user message here to respond via the bot.
+
+usage_sendmessage = ⚠️ Usage: !sendmessage <chat_id> <message> (or attach media / reply to a message in DM with !sendmessage <chat_id> [caption])
+sendmessage_unauthorized = ❌ You are not authorized to send messages on behalf of the bot to group <code>{ $chatId }</code>.
+sendmessage_success = ✅ Message sent to <b>{ $title }</b> (<code>{ $chatId }</code>).
+sendmessage_failed = ❌ Failed to send message to <code>{ $chatId }</code>. Please check that the bot is in the group and has permission to send messages.
+
+inbox_relay_header =
+    📩 <b>Incoming User Message</b>
+    • <b>From:</b> { $sender } (<code>{ $userId }</code>)
+    • <b>Username:</b> { $username }
+    • <b>Group:</b> { $group }
+inbox_multi_group_note = ℹ️ <i>Note: This user is in multiple groups with the bot ({ $groups }).</i>
+inbox_reply_sent = ✅ Reply sent to user.
+inbox_reply_failed = ❌ Failed to deliver reply to the user (they may have blocked the bot).
+
+
 

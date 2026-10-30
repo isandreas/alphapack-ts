@@ -3,7 +3,6 @@ import { createBot } from "../../src/bot.js";
 import { InMemoryRedisStore } from "../helpers/mock-redis.js";
 import { setGroupSetting } from "../../src/middlewares/group-settings.js";
 import {
-  adminCacheKey,
   approvedGroupsKey,
   starsKey,
   usernameMapKey,
@@ -142,7 +141,7 @@ describe("Transition features: dump import, !star, !user, !adminlist, and comman
     return { bot, sentMessages };
   }
 
-  it("imports legacy Redis dump keys (warns, winevent -> stars, admins)", async () => {
+  it("imports legacy Redis dump keys (warns and winevent -> stars, skipping cache/other keys)", async () => {
     const redis = getRedisClient();
 
     const dump = {
@@ -177,19 +176,12 @@ describe("Transition features: dump import, !star, !user, !adminlist, and comman
     expect(summary).toEqual({
       warnsImported: 1,
       starsImported: 1,
-      adminsImported: 1,
-      skippedKeys: 1,
+      skippedKeys: 2,
     });
 
     expect(await redis.hget(warnsKey(CHAT_ID), String(MEMBER_ID))).toBe("2");
     expect(await redis.hget(warnsKey(CHAT_ID), "200002")).toBe("4");
     expect(await redis.hget(starsKey(CHAT_ID), String(MEMBER_ID))).toBe("7");
-
-    const cachedAdmins = JSON.parse(
-      (await redis.get(adminCacheKey(CHAT_ID))) ?? "[]",
-    );
-    expect(cachedAdmins).toEqual([CREATOR_ID, ADMIN_ID]);
-    expect(await redis.ttl(adminCacheKey(CHAT_ID))).toBe(180);
   });
 
   it("handles !star (+n, -n, floor at 0, explicit & reply) and ignores /star", async () => {

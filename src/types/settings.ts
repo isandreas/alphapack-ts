@@ -19,6 +19,8 @@ export interface GroupSettings {
   warnThreshold: number;
   /** Telegram channel ID to forward audit logs. null = disabled. */
   logChannelId: number | null;
+  /** Telegram group ID to forward user DMs (inbox group). null = disabled. */
+  inboxGroupId: number | null;
   /** Feature toggle map — each key is a feature name, value is enabled bool. */
   features: Record<string, boolean>;
 
