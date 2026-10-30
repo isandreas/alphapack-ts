@@ -144,6 +144,33 @@ export function knownGroupsKey(): string {
   return `${NS}:bot:known_groups`;
 }
 
+/**
+ * Redis set storing chatIds of groups approved by the bot owner.
+ *
+ * @example approvedGroupsKey() → "alphapack:bot:approved_groups"
+ */
+export function approvedGroupsKey(): string {
+  return `${NS}:bot:approved_groups`;
+}
+
+/**
+ * Redis set storing chatIds of groups currently awaiting owner approval.
+ *
+ * @example pendingApprovalGroupsKey() → "alphapack:bot:pending_approval_groups"
+ */
+export function pendingApprovalGroupsKey(): string {
+  return `${NS}:bot:pending_approval_groups`;
+}
+
+/**
+ * Redis set storing chatIds of groups banned by the bot owner.
+ *
+ * @example bannedGroupsKey() → "alphapack:bot:banned_groups"
+ */
+export function bannedGroupsKey(): string {
+  return `${NS}:bot:banned_groups`;
+}
+
 // ── Goodbye Suppression (Phase 3) ─────────────────────────────────────────────
 
 /**

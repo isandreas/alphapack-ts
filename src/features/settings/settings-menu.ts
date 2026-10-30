@@ -6,7 +6,7 @@ import {
   setModerationAllViaMenu,
 } from "../../middlewares/group-settings.js";
 import { getGroupAdmins, isGroupAdmin } from "../../middlewares/admin-guard.js";
-import { getKnownGroups } from "./group-registry.js";
+import { getKnownGroups, isGroupApproved } from "./group-registry.js";
 import { hasStartedBot } from "../mentions/user-registry.js";
 import { logger } from "../../utils/logger.js";
 import {
@@ -1013,11 +1013,12 @@ export async function settingsCommandHandler(ctx: BotContext): Promise<void> {
     const match = /^\/start\s+settings_(-?\d+)/i.exec(text);
     if (match) {
       const linkChatId = parseInt(match[1], 10);
+      const isApproved = await isGroupApproved(linkChatId);
       const isAdmin = await isGroupAdmin(ctx, linkChatId, userId);
       const adminIds = await getGroupAdmins(ctx, linkChatId);
       const isBotAdmin = adminIds.includes(ctx.me.id);
 
-      if (isAdmin && isBotAdmin) {
+      if (isApproved && isAdmin && isBotAdmin) {
         ctx.session.settingsChatId = linkChatId;
         await sendSettingsMenu(ctx, linkChatId, "main");
         return;
@@ -1072,11 +1073,12 @@ export async function settingsSelectCallbackHandler(ctx: BotContext): Promise<vo
   if (!chatId || !userId) return;
 
   // Verify permissions one last time
+  const isApproved = await isGroupApproved(chatId);
   const isAdmin = await isGroupAdmin(ctx, chatId, userId);
   const adminIds = await getGroupAdmins(ctx, chatId);
   const isBotAdmin = adminIds.includes(ctx.me.id);
 
-  if (!isAdmin || !isBotAdmin) {
+  if (!isApproved || !isAdmin || !isBotAdmin) {
     await ctx.answerCallbackQuery({ text: "❌ Permission denied.", show_alert: true });
     return;
   }

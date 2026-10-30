@@ -4,6 +4,7 @@ import { InMemoryRedisStore } from "../helpers/mock-redis.js";
 import { setGroupSetting } from "../../src/middlewares/group-settings.js";
 import {
   adminCacheKey,
+  approvedGroupsKey,
   starsKey,
   usernameMapKey,
   warnsKey,
@@ -24,9 +25,10 @@ describe("Transition features: dump import, !star, !user, !adminlist, and comman
   let updateCounter = 5000;
   let messageCounter = 3000;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     store.install();
     store.clear();
+    await getRedisClient().sadd(approvedGroupsKey(), String(CHAT_ID));
   });
 
   function setupBot() {

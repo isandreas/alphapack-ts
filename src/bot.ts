@@ -41,7 +41,15 @@ import { alphabetFilterMiddleware } from "./features/moderation/alphabet-filter.
 import { mediaFilterMiddleware } from "./features/moderation/media-filter.js";
 import { usernameTrackerMiddleware } from "./middlewares/username-tracker.js";
 import { requireAdmin } from "./middlewares/admin-guard.js";
-import { groupRegistryMiddleware, myChatMemberHandler } from "./features/settings/group-registry.js";
+import {
+  groupRegistryMiddleware,
+  myChatMemberHandler,
+  groupApprovalCallbackHandler,
+  activeGroupsCommandHandler,
+  exitGroupCommandHandler,
+  banGroupCommandHandler,
+  unbanGroupCommandHandler,
+} from "./features/settings/group-registry.js";
 import { setLogChannelCommand, setLogChannelConversation } from "./features/settings/set-log-channel.js";
 
 import { warnHandler, removeWarnHandler } from "./features/moderation/warn.js";
@@ -136,6 +144,7 @@ export function createBot(): Bot<BotContext> {
     defaultLocale: env.DEFAULT_LOCALE,
     useSession: true,
     directory: i18nDir,
+    fluentBundleOptions: { useIsolating: false },
     localeNegotiator: (ctx) => {
       return (
         ctx.groupSettings?.locale ||
@@ -149,6 +158,11 @@ export function createBot(): Bot<BotContext> {
 
   // ── 2. Command parser ─────────────────────────────────────────────────────
   bot.use(commandParserMiddleware);
+
+  // ── 2.5 Group Registry & Owner Approval Gate ──────────────────────────────
+  // Blocks all group/supergroup updates (except my_chat_member) when the group
+  // has not been approved by the owner yet, and prompts the owner in DM.
+  bot.use(groupRegistryMiddleware);
 
   // ── 3. Group settings ─────────────────────────────────────────────────────
   bot.use(groupSettingsMiddleware);
@@ -185,9 +199,6 @@ export function createBot(): Bot<BotContext> {
 
   // ── 6. Username Tracker (Phase 1) ─────────────────────────────────────────
   bot.use(usernameTrackerMiddleware);
-
-  // ── 7. Group Registry ─────────────────────────────────────────────────────
-  bot.use(groupRegistryMiddleware);
 
   // ── 7.5 Mentions Relay & Notify Middleware ────────────────────────────────
   bot.use(mentionHandlersMiddleware);
@@ -239,6 +250,7 @@ export function createBot(): Bot<BotContext> {
   bot.callbackQuery(/^captcha_approve:/, captchaCallbackHandler);
   bot.callbackQuery(/^resolve:/, resolveReportCallbackHandler);
   bot.callbackQuery(/^sel_set:/, settingsSelectCallbackHandler);
+  bot.callbackQuery(/^grp_(approve|reject):/, groupApprovalCallbackHandler);
 
   // ── Settings commands ─────────────────────────────────────────────────────
   bot.command("setlogchannel", setLogChannelCommand);
@@ -258,9 +270,14 @@ export function createBot(): Bot<BotContext> {
   bot.command("user", requireBangPrefix(), userInfoHandler);
   bot.command("adminlist", requireBangPrefix(), adminListHandler);
 
-  // ── Phase 7: Ops commands ─────────────────────────────────────────────────
-  // /health is DM-only and owner-only; access control is enforced inside the handler.
+  // ── Phase 7: Ops & Owner commands ─────────────────────────────────────────
+  // /health, /activegroups, /exitgroup, /bangroup, and /unbangroup are DM-only
+  // and owner-only; access control is enforced inside the handlers.
   bot.command("health", healthCommandHandler);
+  bot.command("activegroups", activeGroupsCommandHandler);
+  bot.command("exitgroup", exitGroupCommandHandler);
+  bot.command("bangroup", banGroupCommandHandler);
+  bot.command("unbangroup", unbanGroupCommandHandler);
 
 
   // ── Event handlers ────────────────────────────────────────────────────────

@@ -9,6 +9,7 @@ import {
 } from "../../src/middlewares/group-settings.js";
 import {
   adminCacheKey,
+  approvedGroupsKey,
   knownGroupsKey,
   schedulerZsetKey,
   warnsKey,
@@ -32,9 +33,10 @@ describe("Bot integration flows with grammY API transformer (Part G)", () => {
   let updateCounter = 1000;
   let messageCounter = 500;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     store.install();
     store.clear();
+    await getRedisClient().sadd(approvedGroupsKey(), String(CHAT_ID));
   });
 
   afterAll(async () => {
@@ -381,6 +383,7 @@ describe("Bot integration flows with grammY API transformer (Part G)", () => {
     // ── Case B: Bot HAS administrator + can_post_messages permission ──
     {
       store.clear();
+      await redis.sadd(approvedGroupsKey(), String(CHAT_ID));
       await redis.hset(knownGroupsKey(), String(CHAT_ID), "Alpha Group");
       await redis.set(adminCacheKey(CHAT_ID), JSON.stringify([ADMIN_ID, BOT_ID]));
 
