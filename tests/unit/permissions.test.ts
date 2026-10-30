@@ -20,16 +20,15 @@ describe("Permission checks (Part F)", () => {
   });
 
   describe("isGroupAdmin", () => {
-    it("fetches administrators on cache miss, caches in Redis, and reuses cache on second call", async () => {
+    it("fetches administrators directly from Telegram API", async () => {
       const getChatAdministrators = vi.fn().mockResolvedValue([
         { user: { id: ADMIN_ID, is_bot: false, first_name: "Admin" }, status: "creator" },
       ]);
       const ctx = { api: { getChatAdministrators } } as unknown as BotContext;
 
-      // 1st call: cache miss -> calls API
       expect(await isGroupAdmin(ctx, CHAT_ID, ADMIN_ID)).toBe(true);
       expect(await isGroupAdmin(ctx, CHAT_ID, USER_ID)).toBe(false);
-      expect(getChatAdministrators).toHaveBeenCalledTimes(1);
+      expect(getChatAdministrators).toHaveBeenCalledTimes(2);
     });
 
     it("returns false (conservative deny) when Telegram API throws", async () => {

@@ -15,14 +15,6 @@
       "777888999": "12"
     }
   },
-  "cache:chat:-1001234567890:admins": {
-    "type": "set",
-    "ttl": 300,
-    "value": [
-      "111222333",
-      "999000111"
-    ]
-  },
   "other:legacy:ignored_key": {
     "type": "string",
     "ttl": -1,

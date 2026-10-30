@@ -39,19 +39,6 @@ export function sessionKey(chatId: number, userId: number): string {
   return `${NS}:session:${chatId}:${userId}`;
 }
 
-// ── Admin Cache ────────────────────────────────────────────────────────────────
-
-/**
- * Redis key for the cached admin ID list of a group.
- * Value: JSON-encoded number[] of admin user IDs.
- * TTL: set by admin-guard middleware (default 5 min).
- *
- * @example adminCacheKey(-1001234567890) → "alphapack:-1001234567890:admin_cache"
- */
-export function adminCacheKey(chatId: number): string {
-  return `${NS}:${chatId}:admin_cache`;
-}
-
 // ── Moderation & Community (Phase 2+) ─────────────────────────────────────────
 
 /**
@@ -300,3 +287,20 @@ export function healthCooldownKey(userId: number): string {
 export function schedulerLastRunKey(): string {
   return `${NS}:scheduler:last_run`;
 }
+
+// ── Inbox & DM Relay ───────────────────────────────────────────────────────────
+
+/**
+ * Maps a relayed message ID in an inbox group back to the original DM sender.
+ * Value: JSON-encoded { userId: number, sourceChatIds: number[] }
+ * TTL: 30 days.
+ *
+ * @example inboxRelayMapKey(-1001234567890, 42) → "alphapack:-1001234567890:inbox_relay:42"
+ */
+export function inboxRelayMapKey(
+  inboxChatId: number,
+  inboxMessageId: number,
+): string {
+  return `${NS}:${inboxChatId}:inbox_relay:${inboxMessageId}`;
+}
+

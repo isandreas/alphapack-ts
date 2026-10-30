@@ -108,6 +108,32 @@ export class InMemoryRedisStore {
       return 1;
     };
 
+    client.persist = async (key: string): Promise<number> => {
+      if (this.ttls.has(key)) {
+        this.ttls.delete(key);
+        return 1;
+      }
+      return 0;
+    };
+
+    client.keys = async (pattern: string): Promise<string[]> => {
+      const regex = new RegExp(
+        "^" +
+          pattern
+            .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+            .replace(/\*/g, ".*")
+            .replace(/\?/g, ".") +
+          "$",
+      );
+      const allKeys = new Set<string>([
+        ...this.kv.keys(),
+        ...this.hashes.keys(),
+        ...this.sets.keys(),
+        ...this.zsets.keys(),
+      ]);
+      return Array.from(allKeys).filter((k) => regex.test(k));
+    };
+
     client.hset = async (
       key: string,
       fieldOrObj: string | Record<string, string>,

@@ -43,6 +43,7 @@ commands:
 # --- Moderation (Phase 2) ---
 warnThreshold: 5       # auto-action after N warns
 logChannelId: null     # Telegram channel ID for audit logs (null = disabled)
+inboxGroupId: null     # Telegram group ID for user DM inbox relay (null = disabled)
 banMessage:
   enabled: false
   template: ""

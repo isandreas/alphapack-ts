@@ -168,9 +168,8 @@ export async function floodGuardMiddleware(
     return await next();
   }
 
-  // 4. Skip auto-moderation exempt members (bots and administrators)
-  const isExempt = await isAutoModerationExempt(ctx, chatId, ctx.from);
-  if (isExempt) {
+  // 4. Skip bots synchronously without hitting the Telegram API
+  if (ctx.from?.is_bot) {
     return await next();
   }
 
@@ -192,6 +191,12 @@ export async function floodGuardMiddleware(
     const count = await redis.zcard(fKey);
 
     if (count >= config.messageThreshold) {
+      // Check admin exemption only when threshold is reached
+      const isExempt = await isAutoModerationExempt(ctx, chatId, ctx.from);
+      if (isExempt) {
+        await redis.del(fKey);
+        return await next();
+      }
       await applyFloodPunishment(ctx, chatId, userId, config);
       // Stop execution propagation for the message that triggered punishment
       return;

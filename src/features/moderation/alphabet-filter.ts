@@ -86,19 +86,18 @@ export async function alphabetFilterMiddleware(
     return next();
   }
 
-  // 2. Admins and bots are fully exempt — same policy as flood-guard & captcha
-  const isExempt = await isAutoModerationExempt(ctx, chatId, ctx.from!);
-  if (isExempt) {
+  // Skip bots synchronously without an API call
+  if (ctx.from?.is_bot) {
     return next();
   }
 
-  // 3. Retrieve the alphabet filter config for this group
+  // 2. Retrieve the alphabet filter config for this group
   const filterConfig = ctx.groupSettings?.alphabetFilter;
   if (!filterConfig) {
     return next();
   }
 
-  // 4. Determine which scripts are actually enabled (saves regex cycles)
+  // 3. Determine which scripts are actually enabled (saves regex cycles)
   const enabledScripts = (
     Object.keys(filterConfig) as Array<keyof typeof filterConfig>
   ).filter((script) => filterConfig[script] === true);
@@ -107,17 +106,23 @@ export async function alphabetFilterMiddleware(
     return next();
   }
 
-  // 5. Extract text to scan: message.text OR message.caption (not both needed —
+  // 4. Extract text to scan: message.text OR message.caption (not both needed —
   //    a message is either pure text or media-with-caption, never both)
   const textToScan = msg.text ?? msg.caption ?? "";
   if (!textToScan) {
     return next();
   }
 
-  // 6. Test each enabled script — stop at the first match
+  // 5. Test each enabled script — stop at the first match
   for (const script of enabledScripts) {
     const regex = SCRIPT_REGEXES[script];
     if (regex.test(textToScan)) {
+      // 6. Admins and bots are fully exempt — checked only on match to avoid API calls on clean messages
+      const isExempt = await isAutoModerationExempt(ctx, chatId, ctx.from!);
+      if (isExempt) {
+        return next();
+      }
+
       // Resolve the reason string through i18n so the group notice and log
       // card respect the group's configured locale (id / en).
       const reasonKey = `reason_alphabet_${script}` as const;

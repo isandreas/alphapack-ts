@@ -30,6 +30,7 @@ import { getRedisClient } from "../../db/redis.js";
 import {
   approvedGroupsKey,
   bannedGroupsKey,
+  groupSettingsKey,
   knownGroupsKey,
   pendingApprovalGroupsKey,
 } from "../../db/keys.js";
@@ -153,6 +154,55 @@ export async function removeKnownGroup(chatId: number): Promise<void> {
     redis.srem(approvedGroupsKey(), idStr),
     redis.srem(pendingApprovalGroupsKey(), idStr),
   ]);
+}
+
+/**
+ * Migrates all Redis group registry and settings state from a basic group chatId
+ * to its upgraded supergroup chatId.
+ */
+export async function migrateGroupInRedis(
+  oldChatId: number,
+  newChatId: number,
+  fallbackTitle?: string,
+): Promise<void> {
+  if (oldChatId === newChatId) return;
+  const oldIdStr = String(oldChatId);
+  const newIdStr = String(newChatId);
+  const redis = getRedisClient();
+
+  const existingTitle =
+    fallbackTitle ||
+    (await redis.hget(knownGroupsKey(), newIdStr)) ||
+    (await redis.hget(knownGroupsKey(), oldIdStr)) ||
+    `Group ${newChatId}`;
+
+  await redis.hset(knownGroupsKey(), newIdStr, existingTitle);
+  await redis.hdel(knownGroupsKey(), oldIdStr);
+
+  if (await redis.sismember(approvedGroupsKey(), oldIdStr)) {
+    await redis.sadd(approvedGroupsKey(), newIdStr);
+    await redis.srem(approvedGroupsKey(), oldIdStr);
+  }
+  if (await redis.sismember(pendingApprovalGroupsKey(), oldIdStr)) {
+    await redis.sadd(pendingApprovalGroupsKey(), newIdStr);
+    await redis.srem(pendingApprovalGroupsKey(), oldIdStr);
+  }
+  if (await redis.sismember(bannedGroupsKey(), oldIdStr)) {
+    await redis.sadd(bannedGroupsKey(), newIdStr);
+    await redis.srem(bannedGroupsKey(), oldIdStr);
+  }
+
+  // Copy per-group settings hash if any overrides existed on the basic group
+  const oldSettings = await redis.hgetall(groupSettingsKey(oldChatId));
+  if (oldSettings && Object.keys(oldSettings).length > 0) {
+    await redis.hset(groupSettingsKey(newChatId), oldSettings);
+    await redis.del(groupSettingsKey(oldChatId));
+  }
+
+  logger.info(
+    { event: "group_migrated_in_redis", oldChatId, newChatId, title: existingTitle },
+    "Migrated basic group to supergroup in Redis",
+  );
 }
 
 /**
@@ -337,30 +387,17 @@ export async function groupRegistryMiddleware(
   // Handle basic group → supergroup migration so stored chatIds stay accurate
   if (ctx.message?.migrate_to_chat_id) {
     const newChatId = ctx.message.migrate_to_chat_id;
-    const oldIdStr = String(chat.id);
-    const newIdStr = String(newChatId);
-    const redis = getRedisClient();
     const title =
-      ("title" in chat && chat.title) ||
-      (await redis.hget(knownGroupsKey(), oldIdStr)) ||
-      `Group ${newChatId}`;
-
-    await redis.hset(knownGroupsKey(), newIdStr, title);
-    await redis.hdel(knownGroupsKey(), oldIdStr);
-
-    if (await redis.sismember(approvedGroupsKey(), oldIdStr)) {
-      await redis.sadd(approvedGroupsKey(), newIdStr);
-      await redis.srem(approvedGroupsKey(), oldIdStr);
-    }
-    if (await redis.sismember(pendingApprovalGroupsKey(), oldIdStr)) {
-      await redis.sadd(pendingApprovalGroupsKey(), newIdStr);
-      await redis.srem(pendingApprovalGroupsKey(), oldIdStr);
-    }
-    if (await redis.sismember(bannedGroupsKey(), oldIdStr)) {
-      await redis.sadd(bannedGroupsKey(), newIdStr);
-      await redis.srem(bannedGroupsKey(), oldIdStr);
-    }
+      ("title" in chat && chat.title) ? chat.title : undefined;
+    await migrateGroupInRedis(chat.id, newChatId, title);
     return;
+  }
+
+  if (ctx.message?.migrate_from_chat_id) {
+    const oldChatId = ctx.message.migrate_from_chat_id;
+    const title =
+      ("title" in chat && chat.title) ? chat.title : undefined;
+    await migrateGroupInRedis(oldChatId, chat.id, title);
   }
 
   // If the group is banned, leave immediately without notifying or asking the owner
@@ -500,10 +537,26 @@ export async function groupApprovalCallbackHandler(
         parse_mode: "HTML",
       });
     } catch (err: unknown) {
-      logger.warn(
-        { err, event: "group_approved_notice_failed", chatId: targetChatId },
-        "Failed to send approval notice in group",
-      );
+      const migratedId =
+        err instanceof GrammyError
+          ? err.parameters?.migrate_to_chat_id
+          : undefined;
+      if (typeof migratedId === "number") {
+        await migrateGroupInRedis(targetChatId, migratedId, chatTitle);
+        try {
+          const approvedNotice = i18nInstance.t("en", "group_approved_notice");
+          await ctx.api.sendMessage(migratedId, approvedNotice, {
+            parse_mode: "HTML",
+          });
+        } catch {
+          // ignore
+        }
+      } else {
+        logger.warn(
+          { err, event: "group_approved_notice_failed", chatId: targetChatId },
+          "Failed to send approval notice in group",
+        );
+      }
     }
 
     await ctx.answerCallbackQuery();
@@ -633,7 +686,7 @@ export function parseGroupChatId(raw: string): number | null {
  * Resolves candidate group chat_ids (handling e.g. missing `-100` supergroup
  * prefix or basic-to-supergroup ID variants) against Redis registries.
  */
-async function resolveCandidateGroupIds(
+export async function resolveCandidateGroupIds(
   inputChatId: number,
 ): Promise<{ primaryId: number; allCandidates: number[] }> {
   const absStr = String(Math.abs(inputChatId));

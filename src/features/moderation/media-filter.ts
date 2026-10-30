@@ -68,19 +68,18 @@ export async function mediaFilterMiddleware(
     return next();
   }
 
-  // 2. Admins and bots are fully exempt — same policy as flood-guard & captcha
-  const isExempt = await isAutoModerationExempt(ctx, chatId, ctx.from!);
-  if (isExempt) {
+  // Skip bots synchronously without an API call
+  if (ctx.from?.is_bot) {
     return next();
   }
 
-  // 3. Retrieve the media filter config for this group
+  // 2. Retrieve the media filter config for this group
   const filterConfig = ctx.groupSettings?.mediaFilter;
   if (!filterConfig) {
     return next();
   }
 
-  // 4. Determine matching category (if any).
+  // 3. Determine matching category (if any).
   //    Multiple categories can technically match at once (e.g. a photo message
   //    that also has a URL in its caption). We detect all matches but punish
   //    only ONCE — the first match wins for the reason string.
@@ -111,8 +110,14 @@ export async function mediaFilterMiddleware(
     }
   }
 
-  // 5. No match — pass through
+  // 4. No match — pass through
   if (!triggeredReason) {
+    return next();
+  }
+
+  // 5. Admins and bots are fully exempt — checked only on match to avoid API calls on clean messages
+  const isExempt = await isAutoModerationExempt(ctx, chatId, ctx.from!);
+  if (isExempt) {
     return next();
   }
 

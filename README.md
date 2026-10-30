@@ -120,13 +120,19 @@ Blocks and kicks users who post restricted media types. Each type is an **indepe
 *   **Stars (`!star`):** Admins can award or deduct stars (`!star +[n]` or `!star -[n]`) via reply or explicit `@username`/`user_id` (floored at `0`, stored in `alphapack:<chatId>:stars` hash).
 *   **User Info (`!user`):** Any member can view user details (Display Name, User ID, Username, Warns `X/threshold`, and Stars) for themselves, a replied message, or an explicit `@username`/`user_id`.
 *   **Admin List (`!adminlist`):** Any member can list human group administrators with the **Creator** displayed first followed by **Admins** using plain display names (no ping).
-*   **Legacy Redis Dump Import (`npm run import-dump`):** CLI script (`src/scripts/import-dump.ts`) to migrate legacy bot Redis dumps (`chat:<chat_id>:warns` → `alphapack:<chatId>:warns`, `chat:<chat_id>:winevent` → `alphapack:<chatId>:stars`, and `cache:chat:<chat_id>:admins` → `alphapack:<chatId>:admin_cache`):
+*   **Legacy Redis Dump Import (`npm run import-dump`):** CLI script (`src/scripts/import-dump.ts`) to migrate legacy bot Redis dumps (`chat:<chat_id>:warns` → `alphapack:<chatId>:warns` and `chat:<chat_id>:winevent` → `alphapack:<chatId>:stars`). Imported groups are registered in `known_groups` so the owner is asked to approve them on startup. Admin lists are not cached; admin checks always query Telegram live:
     ```bash
     npm run import-dump -- scripts/legacy-dump.example.json
     ```
 
-### 10. Owner Group Approval & Group Management
-*   **Group Approval Gate:** The bot only operates in groups approved by `OWNER_ID` (persisted in Redis under `alphapack:bot:approved_groups`).
+### 10. Inbox Relay & Send-As-Bot
+*   **Inbox Group:** Configure per source group with `!setinboxgroup`. When a user who has started the bot sends a non-command DM (text, photo, video, document, GIF, audio, voice, sticker), it is relayed once to the inbox group of each of their groups, with a header showing name, `@username`, user ID, and source group. If the user is in several groups with the bot, a note says so.
+*   **Two-Way Replies:** When an admin replies to a relayed message in the inbox group, the bot delivers the reply to the user's DM and reacts with ✅ (falls back to 👍 or a short reply).
+*   **Send As Bot:** `!sendmessage <chat_id> <message>` posts to a group on the bot's behalf (see Commands List).
+
+### 11. Owner Group Approval & Group Management
+*   **Group Approval Gate:** The bot only operates in groups approved by `OWNER_ID` (persisted in Redis under `alphapack:bot:approved_groups` with no expiration).
+*   **Startup & Upgrade Reconciliation:** On startup the bot clears stale pending markers, discovers groups that only exist as Redis data, and re-sends approval requests to the owner for every unapproved group. When a basic group is upgraded to a supergroup (e.g. after promoting the bot), approval and settings are migrated to the new `chat_id`. `/settings` and `!setinboxgroup` run the same reconciliation before listing groups.
 *   **Pending Evaluation Notice:** When added to a new group (or when discovering pre-existing unapproved groups on startup or incoming updates), the bot sends **1 message only** in English to the group informing members that the request will be evaluated by the bot owner, and sends an interactive approval prompt (`✅ Approve` / `❌ Reject`) to `OWNER_ID` in DM. While waiting for owner confirmation, all other group commands, moderation, and filters remain completely silent.
 *   **Approve / Reject Actions:**
     *   **Approve:** Saves the group to `alphapack:bot:approved_groups` and posts a notice in the group informing admins they can start configuring the bot with `/settings`.
@@ -154,6 +160,9 @@ Blocks and kicks users who post restricted media types. Each type is an **indepe
 *   `!star` [reply or user] `+[n]`|`-[n]` — Add or subtract stars for a user (group only, `!` prefix only)
 *   `!settings` / `/settings` — Open interactive settings control panel (group redirects to DM; 4s cooldown)
 *   `!setlogchannel` / `/setlogchannel` — Configure the group's moderation audit log channel (DM only)
+*   `!setinboxgroup` / `/setinboxgroup` — Interactive DM flow to choose a source group and the inbox group that receives member DMs (needs admin in ≥ 2 approved groups with the bot; has a Cancel button; silently ignored for non-admins)
+*   `!unsetinboxgroup` / `/unsetinboxgroup` [chat_id] — Remove a group's inbox group, interactively or directly by `chat_id` (DM only)
+*   `!sendmessage <chat_id> <message>` / `/sendmessage` — Send a message as the bot to a group (DM only). The owner can target any active group, admins only groups where they are admin. Also supports replying in DM to a media/message to send it, with the text as caption.
 
 ### Public Commands
 *   `!ping` / `/ping` — Smoke-test bot liveness

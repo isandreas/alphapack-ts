@@ -8,7 +8,6 @@ import {
   setGroupSetting,
 } from "../../src/middlewares/group-settings.js";
 import {
-  adminCacheKey,
   approvedGroupsKey,
   knownGroupsKey,
   schedulerZsetKey,
@@ -308,9 +307,8 @@ describe("Bot integration flows with grammY API transformer (Part G)", () => {
   it("verifies channel permissions in !setlogchannel flow (both allowed and denied cases) (Part G.3)", async () => {
     const redis = getRedisClient();
 
-    // Seed group registry and admin cache
+    // Seed group registry
     await redis.hset(knownGroupsKey(), String(CHAT_ID), "Alpha Group");
-    await redis.set(adminCacheKey(CHAT_ID), JSON.stringify([ADMIN_ID, BOT_ID]));
 
     // ── Case A: Bot lacks can_post_messages permission in target channel ──
     {
@@ -385,7 +383,6 @@ describe("Bot integration flows with grammY API transformer (Part G)", () => {
       store.clear();
       await redis.sadd(approvedGroupsKey(), String(CHAT_ID));
       await redis.hset(knownGroupsKey(), String(CHAT_ID), "Alpha Group");
-      await redis.set(adminCacheKey(CHAT_ID), JSON.stringify([ADMIN_ID, BOT_ID]));
 
       const { bot, apiCalls } = setupBotWithTransformer({
         channelBotCanPost: true,
@@ -452,5 +449,271 @@ describe("Bot integration flows with grammY API transformer (Part G)", () => {
       expect(channelConfirm).toBeDefined();
       expect(String(channelConfirm?.payload.text)).toContain("Alpha Group");
     }
+  });
+
+  it("supports !sendmessage <chat_id> <message> for group admins and rejects non-admins", async () => {
+    const redis = getRedisClient();
+    await redis.hset(knownGroupsKey(), String(CHAT_ID), "Alpha Group");
+
+    const { bot, apiCalls } = setupBotWithTransformer();
+
+    // 1. Non-admin tries !sendmessage in DM -> rejected
+    await bot.handleUpdate({
+      update_id: ++updateCounter,
+      message: {
+        message_id: ++messageCounter,
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: OFFENDER_ID, type: "private" },
+        from: { id: OFFENDER_ID, is_bot: false, first_name: "RegularUser" },
+        text: `!sendmessage ${CHAT_ID} Hello from unauthorized user`,
+      },
+    });
+
+    expect(
+      apiCalls.some(
+        (c) => c.method === "sendMessage" && c.payload.chat_id === CHAT_ID,
+      ),
+    ).toBe(false);
+
+    // 2. Admin runs !sendmessage in DM -> message posted to target group
+    await bot.handleUpdate({
+      update_id: ++updateCounter,
+      message: {
+        message_id: ++messageCounter,
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: ADMIN_ID, type: "private" },
+        from: { id: ADMIN_ID, is_bot: false, first_name: "Admin" },
+        text: `!sendmessage ${CHAT_ID} Official announcement from bot!`,
+      },
+    });
+
+    const groupMsg = apiCalls.find(
+      (c) => c.method === "sendMessage" && c.payload.chat_id === CHAT_ID,
+    );
+    expect(groupMsg).toBeDefined();
+    expect(groupMsg?.payload.text).toBe("Official announcement from bot!");
+  });
+
+  it("configures !setinboxgroup via 2-step DM buttons, silently drops regular users, relays user DMs with multi-group note, and delivers admin replies", async () => {
+    const SECOND_GROUP_ID = -1002222222222;
+    const INBOX_GROUP_ID = -1003333333333;
+    const redis = getRedisClient();
+
+    // 0. When only 1 active group exists (CHAT_ID from beforeEach), !setinboxgroup immediately rejects
+    {
+      await redis.hset(knownGroupsKey(), String(CHAT_ID), "Alpha Group");
+      const { bot: singleGroupBot, apiCalls: singleGroupCalls } =
+        setupBotWithTransformer();
+
+      await singleGroupBot.handleUpdate({
+        update_id: ++updateCounter,
+        message: {
+          message_id: ++messageCounter,
+          date: Math.floor(Date.now() / 1000),
+          chat: { id: ADMIN_ID, type: "private" },
+          from: { id: ADMIN_ID, is_bot: false, first_name: "Admin" },
+          text: "!setinboxgroup",
+        },
+      });
+
+      const singleGroupReply = String(
+        singleGroupCalls.at(-1)?.payload.text ?? "",
+      );
+      expect(singleGroupReply).toContain("2");
+    }
+
+    // Now add the remaining groups so there are >= 2 groups
+    await redis.sadd(approvedGroupsKey(), String(SECOND_GROUP_ID));
+    await redis.sadd(approvedGroupsKey(), String(INBOX_GROUP_ID));
+    await redis.hset(knownGroupsKey(), String(SECOND_GROUP_ID), "Beta Group");
+    await redis.hset(knownGroupsKey(), String(INBOX_GROUP_ID), "Admin Inbox");
+
+    const { bot, apiCalls } = setupBotWithTransformer();
+
+    // 1. Regular user runs !setinboxgroup in DM -> silently ignored (0 messages sent)
+    await bot.handleUpdate({
+      update_id: ++updateCounter,
+      message: {
+        message_id: ++messageCounter,
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: OFFENDER_ID, type: "private" },
+        from: { id: OFFENDER_ID, is_bot: false, first_name: "RegularUser" },
+        text: "!setinboxgroup",
+      },
+    });
+    expect(
+      apiCalls.filter(
+        (c) => c.method === "sendMessage" && c.payload.chat_id === OFFENDER_ID,
+      ),
+    ).toHaveLength(0);
+
+    // 2. Admin runs !setinboxgroup in DM (Step 1: select source group, Step 2: select target inbox group)
+    await bot.handleUpdate({
+      update_id: ++updateCounter,
+      message: {
+        message_id: ++messageCounter,
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: ADMIN_ID, type: "private" },
+        from: { id: ADMIN_ID, is_bot: false, first_name: "Admin" },
+        text: "!setinboxgroup",
+      },
+    });
+
+    // Step 1 callback: select Alpha Group as source
+    await bot.handleUpdate({
+      update_id: ++updateCounter,
+      callback_query: {
+        id: "cb_sig_src_1",
+        from: { id: ADMIN_ID, is_bot: false, first_name: "Admin" },
+        chat_instance: "ci_sig_1",
+        data: `sig_src:${CHAT_ID}`,
+        message: {
+          message_id: messageCounter,
+          date: Math.floor(Date.now() / 1000),
+          chat: { id: ADMIN_ID, type: "private" },
+          text: "Select source group",
+        },
+      },
+    });
+
+    // Verify Step 2 menu excludes the selected source group (Alpha Group) and includes Cancel button
+    const step2PromptCall = apiCalls.at(-1);
+    const step2CallbackData = (
+      step2PromptCall?.payload.reply_markup?.inline_keyboard ?? []
+    )
+      .flat()
+      .map((btn: { callback_data: string }) => btn.callback_data);
+    expect(step2CallbackData).not.toContain(`sig_dst:${CHAT_ID}`);
+    expect(step2CallbackData).toContain(`sig_dst:${INBOX_GROUP_ID}`);
+    expect(step2CallbackData).toContain("sig_dst:cancel");
+
+    // Step 2 callback: select Admin Inbox as target
+    await bot.handleUpdate({
+      update_id: ++updateCounter,
+      callback_query: {
+        id: "cb_sig_dst_1",
+        from: { id: ADMIN_ID, is_bot: false, first_name: "Admin" },
+        chat_instance: "ci_sig_2",
+        data: `sig_dst:${INBOX_GROUP_ID}`,
+        message: {
+          message_id: messageCounter,
+          date: Math.floor(Date.now() / 1000),
+          chat: { id: ADMIN_ID, type: "private" },
+          text: "Select target inbox group",
+        },
+      },
+    });
+
+    const updatedSettings = await getGroupSettings(CHAT_ID);
+    expect(updatedSettings.inboxGroupId).toBe(INBOX_GROUP_ID);
+
+    // 3. Regular user (who is a member of Alpha Group, Beta Group, and Admin Inbox in mock getChatMember)
+    // sends a normal DM to the bot -> relayed as formatted copy to INBOX_GROUP_ID with multi-group note!
+    apiCalls.length = 0;
+
+    await bot.handleUpdate({
+      update_id: ++updateCounter,
+      message: {
+        message_id: ++messageCounter,
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: OFFENDER_ID, type: "private" },
+        from: {
+          id: OFFENDER_ID,
+          is_bot: false,
+          first_name: "Alice",
+          username: "alice_user",
+        },
+        text: "Hello admins, I need help with my account!",
+      },
+    });
+
+    const relayedCall = apiCalls.find(
+      (c) => c.method === "sendMessage" && c.payload.chat_id === INBOX_GROUP_ID,
+    );
+    expect(relayedCall).toBeDefined();
+    expect(String(relayedCall?.payload.text)).toContain("Alice");
+    expect(String(relayedCall?.payload.text)).toContain("@alice_user");
+    expect(String(relayedCall?.payload.text)).toContain("Alpha Group");
+    expect(String(relayedCall?.payload.text)).toContain("Beta Group");
+    expect(String(relayedCall?.payload.text)).toContain(
+      "Hello admins, I need help with my account!",
+    );
+
+    const relayedMessageId = messageCounter;
+
+    // 4. Admin replies to the relayed message in INBOX_GROUP_ID -> bot sends reply to Alice's DM and reacts with ✅
+    apiCalls.length = 0;
+
+    await bot.handleUpdate({
+      update_id: ++updateCounter,
+      message: {
+        message_id: ++messageCounter,
+        date: Math.floor(Date.now() / 1000),
+        chat: {
+          id: INBOX_GROUP_ID,
+          type: "supergroup",
+          title: "Admin Inbox",
+        },
+        from: { id: ADMIN_ID, is_bot: false, first_name: "Admin" },
+        text: "Hi Alice, we have resolved your issue!",
+        reply_to_message: {
+          message_id: relayedMessageId,
+          date: Math.floor(Date.now() / 1000) - 5,
+          chat: {
+            id: INBOX_GROUP_ID,
+            type: "supergroup",
+            title: "Admin Inbox",
+          },
+          from: { id: BOT_ID, is_bot: true, first_name: "AlphaPack" },
+          text: String(relayedCall?.payload.text),
+        },
+      },
+    });
+
+    const dmToAlice = apiCalls.find(
+      (c) => c.method === "sendMessage" && c.payload.chat_id === OFFENDER_ID,
+    );
+    expect(dmToAlice).toBeDefined();
+    expect(dmToAlice?.payload.text).toBe(
+      "Hi Alice, we have resolved your issue!",
+    );
+
+    const reactionCall = apiCalls.find(
+      (c) =>
+        c.method === "setMessageReaction" &&
+        c.payload.chat_id === INBOX_GROUP_ID,
+    );
+    expect(reactionCall).toBeDefined();
+
+    // 5. Admin runs !unsetinboxgroup in DM and selects Alpha Group -> clears inboxGroupId
+    await bot.handleUpdate({
+      update_id: ++updateCounter,
+      message: {
+        message_id: ++messageCounter,
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: ADMIN_ID, type: "private" },
+        from: { id: ADMIN_ID, is_bot: false, first_name: "Admin" },
+        text: "!unsetinboxgroup",
+      },
+    });
+
+    await bot.handleUpdate({
+      update_id: ++updateCounter,
+      callback_query: {
+        id: "cb_usig_1",
+        from: { id: ADMIN_ID, is_bot: false, first_name: "Admin" },
+        chat_instance: "ci_usig_1",
+        data: `usig:${CHAT_ID}`,
+        message: {
+          message_id: messageCounter,
+          date: Math.floor(Date.now() / 1000),
+          chat: { id: ADMIN_ID, type: "private" },
+          text: "Select group to unset",
+        },
+      },
+    });
+
+    const clearedSettings = await getGroupSettings(CHAT_ID);
+    expect(clearedSettings.inboxGroupId).toBeNull();
   });
 });

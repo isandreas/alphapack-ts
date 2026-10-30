@@ -5,8 +5,8 @@ import {
   setGroupSettingViaMenu,
   setModerationAllViaMenu,
 } from "../../middlewares/group-settings.js";
-import { getGroupAdmins, isGroupAdmin } from "../../middlewares/admin-guard.js";
-import { getKnownGroups, isGroupApproved } from "./group-registry.js";
+import { isGroupAdmin } from "../../middlewares/admin-guard.js";
+import { getKnownGroups, isGroupApproved, reconcileKnownGroups } from "./group-registry.js";
 import { hasStartedBot } from "../mentions/user-registry.js";
 import { logger } from "../../utils/logger.js";
 import {
@@ -243,7 +243,7 @@ async function enterEditor(
   await redis.setex(settingsEditKey(userId), 300, JSON.stringify(state));
   try {
     await ctx.answerCallbackQuery();
-  } catch (e) {}
+  } catch (e) { }
   await ctx.conversation.enter("settingsEditor");
 }
 
@@ -903,7 +903,7 @@ settingsMenu
           caption: "⚙️ Settings closed. Run /settings again to reopen.",
           parse_mode: "HTML",
         });
-      } catch (e2) {}
+      } catch (e2) { }
     }
     await ctx.answerCallbackQuery();
   });
@@ -1012,31 +1012,34 @@ export async function settingsCommandHandler(ctx: BotContext): Promise<void> {
     const text = ctx.message?.text ?? "";
     const match = /^\/start\s+settings_(-?\d+)/i.exec(text);
     if (match) {
-      const linkChatId = parseInt(match[1], 10);
+      const linkChatId = parseInt(match[1]!, 10);
       const isApproved = await isGroupApproved(linkChatId);
       const isAdmin = await isGroupAdmin(ctx, linkChatId, userId);
-      const adminIds = await getGroupAdmins(ctx, linkChatId);
-      const isBotAdmin = adminIds.includes(ctx.me.id);
 
-      if (isApproved && isAdmin && isBotAdmin) {
+      if (isApproved && isAdmin) {
         ctx.session.settingsChatId = linkChatId;
         await sendSettingsMenu(ctx, linkChatId, "main");
         return;
       }
-    }    // Regular DM entry point: list candidate groups
+    }
+
+    // Regular DM entry point: list candidate groups
     const loadingMsg = await ctx.reply(ctx.t("settings_checking_groups"));
 
+    await reconcileKnownGroups(ctx.api);
+    const initialGroups = await getKnownGroups();
+    for (const { chatId: groupChatId } of initialGroups) {
+      await isGroupAdmin(ctx, groupChatId, userId);
+    }
+
+    // Re-read knownGroups in case any basic group ID was migrated to a supergroup ID above
     const knownGroups = await getKnownGroups();
     const candidateGroups: Array<{ chatId: number; title: string }> = [];
 
     for (const { chatId: groupChatId, title } of knownGroups) {
       const isAdmin = await isGroupAdmin(ctx, groupChatId, userId);
       if (isAdmin) {
-        const adminIds = await getGroupAdmins(ctx, groupChatId);
-        const isBotAdmin = adminIds.includes(ctx.me.id);
-        if (isBotAdmin) {
-          candidateGroups.push({ chatId: groupChatId, title });
-        }
+        candidateGroups.push({ chatId: groupChatId, title });
       }
     }
 
@@ -1047,7 +1050,7 @@ export async function settingsCommandHandler(ctx: BotContext): Promise<void> {
     }
 
     if (candidateGroups.length === 0) {
-      await ctx.reply("⚠️ I'm not an admin in any group where you're an admin too.");
+      await ctx.reply(ctx.t("setlogchannel_no_groups"));
       return;
     }
 
@@ -1075,10 +1078,8 @@ export async function settingsSelectCallbackHandler(ctx: BotContext): Promise<vo
   // Verify permissions one last time
   const isApproved = await isGroupApproved(chatId);
   const isAdmin = await isGroupAdmin(ctx, chatId, userId);
-  const adminIds = await getGroupAdmins(ctx, chatId);
-  const isBotAdmin = adminIds.includes(ctx.me.id);
 
-  if (!isApproved || !isAdmin || !isBotAdmin) {
+  if (!isApproved || !isAdmin) {
     await ctx.answerCallbackQuery({ text: "❌ Permission denied.", show_alert: true });
     return;
   }
@@ -1088,7 +1089,7 @@ export async function settingsSelectCallbackHandler(ctx: BotContext): Promise<vo
   // Clear select list message and show main settings panel
   try {
     await ctx.deleteMessage();
-  } catch (e) {}
+  } catch (e) { }
 
   await sendSettingsMenu(ctx, chatId, "main");
 }
